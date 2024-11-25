@@ -1,0 +1,7 @@
+{
+	"login": {
+		"username": "admin",
+		"password": "admin"
+	},
+	"expectedTitle": "Rancher - Kubernetes Management"
+}
