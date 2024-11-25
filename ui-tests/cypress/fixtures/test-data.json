@@ -1,7 +1,11 @@
 {
 	"login": {
 		"username": "admin",
-		"password": "admin"
+		"password": "adminpassword"
 	},
-	"expectedTitle": "Rancher - Kubernetes Management"
+	"expectedTitle": "Rancher",
+	"errorMessages": {
+		"invalidCredentials": "Invalid username or password.",
+		"emptyFields": "Please fill in all required fields."
+	}
 }
