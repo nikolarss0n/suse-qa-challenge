@@ -1,0 +1,24 @@
+# Root level
+.DS_Store
+.env
+.idea/
+.vscode/
+
+# Level 1: UI Tests
+ui-tests/node_modules/
+ui-tests/cypress/videos/
+ui-tests/cypress/screenshots/
+ui-tests/cypress/downloads/
+
+# Level 2: API Tests
+api-tests/bin/
+api-tests/vendor/
+api-tests/*.test
+
+# Level 3: Infrastructure
+infrastructure/.terraform/
+infrastructure/*.tfstate
+infrastructure/*.tfstate.*
+infrastructure/*.tfvars
+infrastructure/.terraformrc
+infrastructure/terraform.rc

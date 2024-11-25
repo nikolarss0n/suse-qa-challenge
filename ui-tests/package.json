@@ -1,0 +1,28 @@
+{
+	"name": "ui-tests",
+	"version": "1.0.0",
+	"main": "index.js",
+	"scripts": {
+		"format": "biome format .",
+		"format:check": "biome format . --check",
+		"lint": "biome lint .",
+		"check": "biome check .",
+		"ci": "npm run format:check && npm run lint",
+		"test": "cypress run",
+		"test:open": "cypress open",
+		"type-check": "tsc --noEmit"
+	},
+	"keywords": [],
+	"author": "",
+	"license": "ISC",
+	"description": "",
+	"dependencies": {
+		"cypress": "^13.16.0"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "1.5.3",
+		"typescript": "^5.0.0",
+		"@types/node": "^20.0.0",
+		"cypress": "^13.6.0"
+	}
+}
