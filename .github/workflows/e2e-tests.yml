@@ -28,52 +28,23 @@ jobs:
             -nodes -keyout ./certs/server.key -out ./certs/server.crt \
             -subj "/CN=localhost" -addext "subjectAltName=DNS:localhost"
 
-      - name: Wait for Rancher container to start
+      - name: Wait for Rancher to be ready
         run: |
-          echo "Starting wait for Rancher container..."
-
-          # Force a static sleep to allow the container to initialize
-          echo "Waiting 60 seconds for Rancher container to initialize..."
-          sleep 60
-
-          # Check Rancher container health
-          CONTAINER_ID=$(docker ps -q --filter "ancestor=rancher/rancher:latest")
-
-          if [ -z "$CONTAINER_ID" ]; then
-            echo "Error: Rancher container not found."
-            exit 1
-          fi
-
+          echo "Waiting for Rancher container to initialize..."
           for i in {1..12}; do
-            STATUS=$(docker inspect -f "{{.State.Health.Status}}" "$CONTAINER_ID" || echo "not found")
-            echo "Container status: $STATUS"
-
-            if [ "$STATUS" = "healthy" ]; then
-              echo "Rancher container is healthy!"
-              exit 0
+            STATUS=$(docker inspect -f "{{.State.Status}}" $(docker ps -q --filter "ancestor=rancher/rancher:latest"))
+            if [ "$STATUS" = "running" ]; then
+              UI_STATUS=$(curl -k -s -o /dev/null -w "%{http_code}" https://localhost:8443)
+              if [ "$UI_STATUS" -eq 200 ]; then
+                echo "Rancher is ready!"
+                exit 0
+              fi
             fi
-
             echo "Still waiting... ($((i * 5)) seconds elapsed)"
             sleep 5
           done
-
-          echo "Error: Rancher container failed to become healthy within 2 minutes."
+          echo "Error: Rancher failed to initialize within 60 seconds."
           exit 1
-
-
-
-
-      - name: Wait for Rancher UI to respond
-        run: |
-          echo "Waiting for Rancher UI to respond..."
-          RANCHER_PORT=$(docker port $(docker ps -q --filter "ancestor=rancher/rancher:latest") 443 | cut -d: -f2)
-          echo "Using Rancher on port: $RANCHER_PORT"
-          timeout 900 bash -c '
-          while ! curl -k -s -o /dev/null -w "%{http_code}" https://localhost:$RANCHER_PORT | grep -E "^(200|302)$"; do
-            echo "Still waiting for Rancher UI..."
-            sleep 5
-          done || { echo "Rancher UI failed to respond."; exit 1; }
-          '
 
       - name: Initialize Rancher
         run: |
