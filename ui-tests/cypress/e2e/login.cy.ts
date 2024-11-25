@@ -1,63 +1,57 @@
-import { LoginPage } from '@/pages/login.page';
-import { DashboardPage } from '@/pages/dashboard.page';
 import { BaseConfig } from '@/config/base.config';
-import type { TestData } from '@/types/rancher';
+import { authService } from '@/services/auth.service';
+import { dashboardService } from '@/services/dashboard.service';
+import { sessionService } from '@/services/session.service';
+import type { TestData } from '@/types/test-data';
 
 describe('Rancher Manager E2E Tests', () => {
-	const loginPage = new LoginPage();
-	const dashboardPage = new DashboardPage();
 
 	beforeEach(() => {
+		sessionService.clear();
 		cy.fixture('test-data.json').as('testData');
-		cy.intercept('POST', `${BaseConfig.apiPath}/v3-public/localProviders/local*`).as('loginRequest');
-		cy.intercept('GET', `${BaseConfig.apiPath}/v3/clusters`).as('clustersRequest');
 	});
 
+
 	describe('Authentication & Dashboard Access', () => {
-		it('successfully authenticates user', () => {
+		it('successfully authenticates user and verifies dashboard navigation', () => {
 			cy.get<TestData>('@testData').then((testData) => {
-				loginPage.visit();
-				loginPage.login(testData.login.username, testData.login.password);
+				// Use AuthService to log in
+				authService.login(testData.login.username, testData.login.password);
 
-				cy.wait('@loginRequest')
-					.its('response.statusCode')
-					.should('eq', 200);
-
+				// Verify navigation to dashboard
 				cy.url().should('include', BaseConfig.routes.dashboard);
 			});
 		});
 
 		it('verifies main dashboard page loads correctly', () => {
 			cy.get<TestData>('@testData').then((testData) => {
-				loginPage.visit();
-				loginPage.login(testData.login.username, testData.login.password);
+				// Use AuthService to log in
+				authService.login(testData.login.username, testData.login.password);
 
-				dashboardPage.elements.mainContent().should('be.visible');
-				dashboardPage.elements.navigationMenu().should('exist');
-				dashboardPage.elements.clusterList().should('be.visible');
-
-				cy.wait('@clustersRequest')
-					.its('response.statusCode')
-					.should('eq', 200);
+				// Verify dashboard elements
+				dashboardService.verifyDashboardLoaded();
 			});
 		});
 
 		it('validates correct page title', () => {
 			cy.get<TestData>('@testData').then((testData) => {
-				loginPage.visit();
-				loginPage.login(testData.login.username, testData.login.password);
-				cy.title().should('eq', testData.expectedTitle);
+				// Use AuthService to log in
+				authService.login(testData.login.username, testData.login.password);
+
+				// Verify dashboard title
+				dashboardService.verifyPageTitle(testData.expectedTitle);
 			});
 		});
-	});
 
-	describe('Error Handling', () => {
-		it('handles invalid credentials appropriately', () => {
-			loginPage.visit();
-			loginPage.login('invalid', 'invalid');
-			loginPage.elements.errorMessage()
-				.should('be.visible')
-				.and('contain', 'Invalid credentials');
+
+		it('error handling', () => {
+			cy.get<TestData>('@testData').then((testData) => {
+				// Attempt login with invalid credentials
+				authService.login('invalid', 'invalid');
+
+				// Verify the error message
+				authService.verifyLoginMessage(testData.errorMessages.invalidCredentials);
+			});
 		});
 	});
 });

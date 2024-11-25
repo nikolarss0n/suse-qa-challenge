@@ -3,10 +3,10 @@ import { BasePage } from "@/pages/base.page";
 
 export class LoginPage extends BasePage {
 	readonly elements = {
-		usernameInput: () => cy.get('[data-testid="login-username-field"]'),
-		passwordInput: () => cy.get('[data-testid="login-password-field"]'),
+		usernameInput: () => cy.get('[data-testid="local-login-username"]'),
+		passwordInput: () => cy.get('[data-testid="local-login-password"]'),
 		loginButton: () => cy.get('[data-testid="login-submit"]'),
-		errorMessage: () => cy.get('[data-testid="login-error"]')
+		errorMessage: () => cy.get('[data-testid="login__messages"]')
 	};
 
 	visit(): void {
