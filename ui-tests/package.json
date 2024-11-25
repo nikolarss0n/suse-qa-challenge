@@ -10,20 +10,19 @@
 		"ci": "npm run format:check && npm run lint",
 		"test": "cypress run",
 		"test:open": "cypress open",
-		"type-check": "tsc --noEmit"
+		"type-check": "tsc --noEmit",
+		"test:local": "bash scripts/run-local-tests.sh",
+		"test:ci": "cypress run"
 	},
 	"keywords": [],
 	"author": "",
 	"license": "ISC",
 	"description": "",
-	"dependencies": {
-		"cypress": "^13.16.0"
-	},
 	"devDependencies": {
 		"@biomejs/biome": "1.5.3",
 		"@cypress/webpack-preprocessor": "^6.0.2",
-		"@types/node": "^20.0.0",
-		"cypress": "^13.6.0",
+		"@types/node": "^20.17.8",
+		"cypress": "^13.16.0",
 		"ts-loader": "^9.5.1",
 		"typescript": "^5.0.0"
 	}
