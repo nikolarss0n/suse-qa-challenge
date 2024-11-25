@@ -1,5 +1,3 @@
-name: E2E Tests
-
 on:
   push:
     branches: [ main ]
@@ -9,40 +7,88 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    
+
     services:
       rancher:
         image: rancher/rancher:latest
         ports:
-          - 80:80
-          - 443:443
+          - 0:443
         env:
-          CATTLE_BOOTSTRAP_PASSWORD: admin
-          CATTLE_BOOTSTRAP_TYPE: admin
-        options: >-
-          --privileged
-          --restart=unless-stopped
-    
+          CATTLE_BOOTSTRAP_PASSWORD: ${{ secrets.RANCHER_ADMIN_PASSWORD }}
+        options: --privileged --restart=unless-stopped
+
     steps:
-      - uses: actions/checkout@v3
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-          
-      - name: Install dependencies
-        run: npm ci
-        
-      - name: Wait for Rancher
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Generate SSL certificate
         run: |
-          timeout 300 bash -c 'while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' https://localhost)" != "200" ]]; do sleep 5; done'
-          
+          mkdir -p ./certs
+          openssl req -x509 -newkey rsa:4096 -sha256 -days 3650 \
+            -nodes -keyout ./certs/server.key -out ./certs/server.crt \
+            -subj "/CN=localhost" -addext "subjectAltName=DNS:localhost"
+
+      - name: Wait for Rancher container to start
+        run: |
+          echo "Starting wait for Rancher container..."
+
+          # Force a static sleep to allow the container to initialize
+          echo "Waiting 60 seconds for Rancher container to initialize..."
+          sleep 60
+
+          # Check Rancher container health
+          CONTAINER_ID=$(docker ps -q --filter "ancestor=rancher/rancher:latest")
+
+          if [ -z "$CONTAINER_ID" ]; then
+            echo "Error: Rancher container not found."
+            exit 1
+          fi
+
+          for i in {1..12}; do
+            STATUS=$(docker inspect -f "{{.State.Health.Status}}" "$CONTAINER_ID" || echo "not found")
+            echo "Container status: $STATUS"
+
+            if [ "$STATUS" = "healthy" ]; then
+              echo "Rancher container is healthy!"
+              exit 0
+            fi
+
+            echo "Still waiting... ($((i * 5)) seconds elapsed)"
+            sleep 5
+          done
+
+          echo "Error: Rancher container failed to become healthy within 2 minutes."
+          exit 1
+
+
+
+
+      - name: Wait for Rancher UI to respond
+        run: |
+          echo "Waiting for Rancher UI to respond..."
+          RANCHER_PORT=$(docker port $(docker ps -q --filter "ancestor=rancher/rancher:latest") 443 | cut -d: -f2)
+          echo "Using Rancher on port: $RANCHER_PORT"
+          timeout 900 bash -c '
+          while ! curl -k -s -o /dev/null -w "%{http_code}" https://localhost:$RANCHER_PORT | grep -E "^(200|302)$"; do
+            echo "Still waiting for Rancher UI..."
+            sleep 5
+          done || { echo "Rancher UI failed to respond."; exit 1; }
+          '
+
+      - name: Initialize Rancher
+        run: |
+          FIRST_LOGIN_TOKEN=$(curl -k -s "https://localhost:$RANCHER_PORT/v3-public/localProviders/local?action=login" \
+            -H 'content-type: application/json' \
+            --data-raw "{\"username\":\"admin\",\"password\":\"${{ secrets.RANCHER_ADMIN_PASSWORD }}\"}" | jq -r .token)
+          echo "CYPRESS_AUTH_TOKEN=$FIRST_LOGIN_TOKEN" >> $GITHUB_ENV
+
       - name: Run Cypress tests
-        run: npm run test
+        uses: cypress-io/github-action@v6
+        with:
+          config: baseUrl=https://localhost:$RANCHER_PORT
         env:
-          CYPRESS_BASE_URL: https://localhost
-          
+          CYPRESS_VERIFY_SSL: false
+
       - name: Upload test artifacts
         if: always()
         uses: actions/upload-artifact@v3
