@@ -5,8 +5,11 @@
 		"esModuleInterop": true,
 		"baseUrl": "./",
 		"paths": {
+			"@/*": ["cypress/support/*"],
+			"@/pages/*": ["cypress/support/pages/*"],
 			"@/config/*": ["config/*"],
-			"@/*": ["cypress/support/*"]
+			"@/types/*": ["cypress/support/types/*"],
+			"@/services/*": ["cypress/support/services/*"]
 		}
 	}
 }

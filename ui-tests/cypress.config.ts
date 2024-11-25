@@ -10,8 +10,11 @@ export default defineConfig({
         webpackOptions: {
           resolve: {
             alias: {
-              "@/*": ["cypress/support/*"],
-              "@/config": path.resolve(__dirname, 'config')
+              "@/*": path.resolve(__dirname, "cypress/support"),
+              "@/config": path.resolve(__dirname, "config"),
+              "@/pages": path.resolve(__dirname, "cypress/support/pages"),
+              "@/types": path.resolve(__dirname, "cypress/support/types"),
+              "@/services": path.resolve(__dirname, "cypress/support/services"),
             },
             extensions: ['.ts', '.js']
           },
