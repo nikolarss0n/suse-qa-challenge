@@ -1,18 +1,17 @@
 import { BaseConfig } from '@/config/base.config';
 import { authService } from '@/services/auth.service';
-import { setupService } from '@/services/setup.service'
 import { dashboardService } from '@/services/dashboard.service';
 import { sessionService } from '@/services/session.service';
 import type { TestData } from '@/types/test-data';
 
 describe('Rancher Manager E2E Tests', () => {
 	cy.fixture('test-data.json').then((testData) => {
-		setupService.setupInitialAdmin(testData.login.password);
+		authService.setupLogin(testData.login.password);
 	});
 
 	beforeEach(() => {
 		sessionService.clear();
-		// cy.fixture('test-data.json').as('testData');
+		cy.fixture('test-data.json').as('testData');
 	});
 
 

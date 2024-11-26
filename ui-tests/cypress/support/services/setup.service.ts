@@ -1,19 +1,31 @@
-// services/setup.service.ts
-import { BaseConfig } from "@/config/base.config";
+import { LoginPage } from "@/pages/login.page";
 
 export class SetupService {
-	readonly elements = {
-		passwordInput: () => cy.get('[data-testid="local-login-password"]'),
-		loginButton: () => cy.get('[data-testid="login-submit"]')
-	};
+	private loginPage: LoginPage;
 
-	setupInitialAdmin(password: string): void {
-		cy.visit(BaseConfig.routes.login);
+	constructor() {
+		this.loginPage = new LoginPage();
+	}
+
+	/**
+	 * Perform login workflow
+	 */
+	login(username: string, password: string): void {
+		this.loginPage.visit();
 		this.elements.passwordInput().type(password);
 		this.elements.loginButton().click();
-		// Wait for setup to complete
-		cy.url().should('include', BaseConfig.routes.dashboard, { timeout: 30000 });
 	}
+
+	/**
+	 * Assert login shows a specific message (e.g., error or success).
+	 * @param expectedMessage - The expected login message to assert.
+	 */
+	verifyLoginMessage(expectedMessage: string): void {
+		this.loginPage.elements.errorMessage()
+			.should('be.visible')
+			.and('contain.text', expectedMessage);
+	}
+
 }
 
-export const setupService = new SetupService();
+export const authService = new AuthService();

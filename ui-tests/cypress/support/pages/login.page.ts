@@ -18,4 +18,10 @@ export class LoginPage extends BasePage {
 		this.elements.passwordInput().type(password);
 		this.elements.loginButton().click();
 	}
+
+
+	setupLogin(password: string): void {
+		this.elements.passwordInput().type(password);
+		this.elements.loginButton().click();
+	}
 }

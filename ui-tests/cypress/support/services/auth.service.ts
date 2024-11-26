@@ -16,6 +16,14 @@ export class AuthService {
 	}
 
 	/**
+	 * Perform login workflow
+	 */
+	setupLogin(password: string): void {
+		this.loginPage.visit();
+		this.loginPage.setupLogin(password);
+	}
+
+	/**
 	 * Assert login shows a specific message (e.g., error or success).
 	 * @param expectedMessage - The expected login message to assert.
 	 */
