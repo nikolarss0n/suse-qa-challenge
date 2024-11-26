@@ -2,9 +2,11 @@ name: Rancher Test Workflow
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - test-rancher  # Changed to your test branch
   pull_request:
-    branches: [ main ]
+    branches: 
+      - test-rancher  # Changed to your test branch
 
 jobs:
   test:
@@ -30,36 +32,42 @@ jobs:
             rancher/rancher:latest
 
       - name: Wait for Rancher to be ready
-        timeout-minutes: 5
+        timeout-minutes: 10
         run: |
           echo "Waiting for Rancher to initialize..."
           until curl -sk ${RANCHER_URL}/ping > /dev/null 2>&1; do
             echo "Waiting for Rancher API..."
-            sleep 10
-            
-            # Show container status and logs for debugging
             docker ps -a --filter name=rancher
-            docker logs rancher --tail 50
+            docker logs rancher --tail 20
+            sleep 30
           done
           echo "Rancher is ready!"
 
       - name: Initialize Rancher and get auth token
         run: |
-          # Allow API to stabilize
-          sleep 10
+          # Additional wait to ensure API stability
+          sleep 30
           
-          # Login and get token
+          echo "Attempting to get authentication token..."
           TOKEN=$(curl -sk "${RANCHER_URL}/v3-public/localProviders/local?action=login" \
             -H 'content-type: application/json' \
             --data-raw "{\"username\":\"admin\",\"password\":\"${{ secrets.RANCHER_ADMIN_PASSWORD }}\"}" \
             | jq -r .token)
           
-          if [ -z "$TOKEN" ]; then
+          if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
             echo "Failed to get authentication token"
+            echo "Rancher container logs:"
+            docker logs rancher
             exit 1
           fi
           
+          echo "Successfully obtained authentication token"
           echo "CYPRESS_AUTH_TOKEN=$TOKEN" >> $GITHUB_ENV
+
+      - name: Install Cypress dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk2.0-0 libgtk-3-0 libgbm-dev libnotify-dev libgconf-2-4 libnss3 libxss1 libasound2 libxtst6 xauth xvfb
 
       - name: Run Cypress tests
         uses: cypress-io/github-action@v6
@@ -67,6 +75,8 @@ jobs:
           config: baseUrl=${RANCHER_URL}
         env:
           CYPRESS_VERIFY_SSL: false
+          # Add any other Cypress environment variables you need
+          CYPRESS_AUTH_TOKEN: ${{ env.CYPRESS_AUTH_TOKEN }}
 
       - name: Upload test artifacts
         if: always()
@@ -76,3 +86,7 @@ jobs:
           path: |
             cypress/videos
             cypress/screenshots
+
+      - name: Cleanup
+        if: always()
+        run: docker rm -f rancher || true
