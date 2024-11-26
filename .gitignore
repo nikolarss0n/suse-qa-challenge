@@ -9,6 +9,7 @@ ui-tests/node_modules/
 ui-tests/cypress/videos/
 ui-tests/cypress/screenshots/
 ui-tests/cypress/downloads/
+ui-tests/cypress.env.json
 
 # Level 2: API Tests
 api-tests/bin/
