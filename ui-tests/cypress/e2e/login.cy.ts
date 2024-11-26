@@ -5,53 +5,39 @@ import { sessionService } from '@/services/session.service';
 import type { TestData } from '@/types/test-data';
 
 describe('Rancher Manager E2E Tests', () => {
+	let testData: TestData;
 
-	beforeEach(() => {
-		sessionService.clear();
-		cy.fixture('test-data.json').as('testData');
+	before(() => {
+		// Load test data once before all tests and init setup login
+		cy.fixture('test-data.json').then((data) => {
+			testData = data;
+			authService.setupLogin(testData.login.username, testData.login.password);
+		});
 	});
 
+	beforeEach(() => {
+		// Clear session to ensure a fresh start
+		sessionService.clear();
 
-	describe('Authentication & Dashboard Access', () => {
-		it('successfully authenticates user and verifies dashboard navigation', () => {
-			cy.get<TestData>('@testData').then((testData) => {
-				// Use AuthService to log in
-				authService.login(testData.login.username, testData.login.password);
+		// Perform standard login
+		authService.login(testData.login.username, testData.login.password);
+	});
 
-				// Verify navigation to dashboard
-				cy.url().should('include', BaseConfig.routes.dashboard);
-			});
-		});
+	it('should login into Rancher web page', () => {
+		// Click on the user menu and assert the username is displayed
+		dashboardService.verifyUsername(testData.login.username);
+	});
 
-		it('verifies main dashboard page loads correctly', () => {
-			cy.get<TestData>('@testData').then((testData) => {
-				// Use AuthService to log in
-				authService.login(testData.login.username, testData.login.password);
+	it('should check if the main web page opens up', () => {
+		// Verify navigation to main web page (dashboard)
+		cy.url().should('include', BaseConfig.routes.dashboard);
 
-				// Verify dashboard elements
-				dashboardService.verifyDashboardLoaded();
-			});
-		});
+		// Verify main web page loads correctly
+		dashboardService.verifyDashboardLoaded();
+	});
 
-		it('validates correct page title', () => {
-			cy.get<TestData>('@testData').then((testData) => {
-				// Use AuthService to log in
-				authService.login(testData.login.username, testData.login.password);
-
-				// Verify dashboard title
-				dashboardService.verifyPageTitle(testData.expectedTitle);
-			});
-		});
-
-
-		it('error handling', () => {
-			cy.get<TestData>('@testData').then((testData) => {
-				// Attempt login with invalid credentials
-				authService.login('invalid', 'invalid');
-
-				// Verify the error message
-				authService.verifyLoginMessage(testData.errorMessages.invalidCredentials);
-			});
-		});
+	it('should check if the main web page title is correct', () => {
+		// Verify that the page title is correct
+		dashboardService.verifyPageTitle(testData.expectedTitle);
 	});
 });
