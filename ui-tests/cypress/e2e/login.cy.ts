@@ -8,6 +8,9 @@ describe('Rancher Manager E2E Tests', () => {
 	before(() => {
 		cy.fixture('test-data.json').then((testData) => {
 			authService.setupLogin(testData.login.password);
+			cy.url().should('include', BaseConfig.routes.dashboard);
+
+			dashboardService.verifyDashboardLoaded();
 		});
 	});
 

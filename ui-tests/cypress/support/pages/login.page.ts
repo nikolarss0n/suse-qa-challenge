@@ -6,7 +6,9 @@ export class LoginPage extends BasePage {
 		usernameInput: () => cy.get('[data-testid="local-login-username"]'),
 		passwordInput: () => cy.get('[data-testid="local-login-password"]'),
 		loginButton: () => cy.get('[data-testid="login-submit"]'),
-		errorMessage: () => cy.get('[data-testid="login__messages"]')
+		errorMessage: () => cy.get('[data-testid="login__messages"]'),
+		userAgreementCheckbox: () => cy.get('[data-testid="setup-agreement"] > .checkbox-container > .checkbox-custom'),
+		setupSubmitButton: () => cy.get('[data-testid="setup-submit"]')
 	};
 
 	visit(): void {
@@ -23,5 +25,7 @@ export class LoginPage extends BasePage {
 	setupLogin(password: string): void {
 		this.elements.passwordInput().type(password);
 		this.elements.loginButton().click();
+		this.elements.userAgreementCheckbox().click()
+		this.elements.setupSubmitButton().click()
 	}
 }
