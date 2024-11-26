@@ -1,10 +1,19 @@
 import { BaseConfig } from '@/config/base.config';
 import { authService } from '@/services/auth.service';
+import { authApiService } from '@/services/auth.api.service'
 import { dashboardService } from '@/services/dashboard.service';
 import { sessionService } from '@/services/session.service';
 import type { TestData } from '@/types/test-data';
 
 describe('Rancher Manager E2E Tests', () => {
+	before(() => {
+		cy.fixture('test-data.json').then((testData) => {
+			authApiService.setupAdminUser(testData.login.bootstrapPassword)
+				.then((response) => {
+					expect(response.status).to.be.oneOf([200, 201]);
+				});
+		});
+	});
 
 	beforeEach(() => {
 		sessionService.clear();
