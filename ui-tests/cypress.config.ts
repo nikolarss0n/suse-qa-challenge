@@ -31,7 +31,11 @@ export default defineConfig({
           }
         }
       }));
+
+      // Return the config for proper environment variable handling
+      return config;
     },
-    ...BaseConfig
+    ...BaseConfig,
+    chromeWebSecurity: false
   }
 });

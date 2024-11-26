@@ -8,7 +8,7 @@ export const BaseConfig = {
 		defaultTimeout: 10000,
 		pageLoad: 30000
 	},
-	baseUrl: 'https://localhost:8443',
+	baseUrl: process.env.CYPRESS_BASE_URL || 'https://localhost:8443',
 	env: {
 		RANCHER_URL: 'https://localhost:8443'
 	}

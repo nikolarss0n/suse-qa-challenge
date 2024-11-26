@@ -23,6 +23,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: 'ui-tests/package-lock.json'
+
       - name: Start Rancher container
         run: |
           docker run -d \
@@ -52,7 +59,7 @@ jobs:
           
           echo "Attempting to get authentication token..."
           TOKEN=$(curl -sk "${RANCHER_URL}/v3-public/localProviders/local?action=login" \
-            -H 'content-content: application/json' \
+            -H 'content-type: application/json' \
             --data-raw "{\"username\":\"admin\",\"password\":\"${{ secrets.RANCHER_ADMIN_PASSWORD }}\"}" \
             | jq -r .token)
           
@@ -66,19 +73,24 @@ jobs:
           echo "Successfully obtained authentication token"
           echo "CYPRESS_AUTH_TOKEN=$TOKEN" >> $GITHUB_ENV
 
-      - name: Install Cypress dependencies
+      - name: Install dependencies
+        working-directory: ui-tests
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk2.0-0 libgtk-3-0 libgbm-dev libnotify-dev libgconf-2-4 libnss3 libxss1 libasound2 libxtst6 xauth xvfb
+          npm ci
 
       - name: Run Cypress tests
         uses: cypress-io/github-action@v6
         with:
           working-directory: ui-tests
-          config: baseUrl=${RANCHER_URL}
+          browser: chrome
         env:
-          CYPRESS_VERIFY_SSL: false
+          CYPRESS_BASE_URL: https://localhost:8443
+          CYPRESS_RANCHER_URL: https://localhost:8443
           CYPRESS_AUTH_TOKEN: ${{ env.CYPRESS_AUTH_TOKEN }}
+          CYPRESS_VERIFY_SSL: false
+          NODE_TLS_REJECT_UNAUTHORIZED: '0'
+          # Moving the chrome web security config to an env variable
+          CYPRESS_CHROME_WEB_SECURITY: false
 
       - name: Upload test artifacts
         if: always()
