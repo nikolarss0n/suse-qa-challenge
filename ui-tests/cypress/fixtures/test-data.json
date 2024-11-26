@@ -1,7 +1,7 @@
 {
 	"login": {
-		"username": "admin",
-		"password": "adminpassword"
+		"username": "${ADMIN_USERNAME}",
+		"password": "${ADMIN_PASSWORD}"
 	},
 	"expectedTitle": "Rancher",
 	"errorMessages": {

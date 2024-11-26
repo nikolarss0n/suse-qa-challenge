@@ -8,14 +8,11 @@
 		"format:check": "biome format . --check",
 		"lint": "biome lint .",
 		"type-check": "tsc --noEmit",
-
 		"ci": "npm run format:check && npm run lint",
-
 		"test": "cypress run",
 		"test:ci": "cypress run",
 		"test:open": "cypress open",
 		"test:local": "npm run rancher:start && cypress run && npm run rancher:stop",
-
 		"rancher:start": "bash scripts/rancher-local.sh start",
 		"rancher:stop": "bash scripts/rancher-local.sh stop"
 	},
@@ -30,5 +27,8 @@
 		"cypress": "^13.16.0",
 		"ts-loader": "^9.5.1",
 		"typescript": "^5.0.0"
+	},
+	"dependencies": {
+		"dotenv": "^16.4.5"
 	}
 }
