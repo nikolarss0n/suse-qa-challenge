@@ -1,23 +1,14 @@
-// ***********************************************************
-// This example support/e2e.ts is processed and
-// loaded automatically before your test files.
-//
-// This is a great place to put global configuration and
-// behavior that modifies Cypress.
-//
-// You can change the location of this file or turn off
-// automatically serving support files with the
-// 'supportFile' configuration option.
-//
-// You can read more here:
-// https://on.cypress.io/configuration
-// ***********************************************************
+/**
+ * Global Cypress E2E test configuration.
+ * Sets up test environment, request interception, and type declarations.
+ */
 
-// Import commands.js using ES2015 syntax:
 import './commands'
 import { BaseConfig } from '@/config/base.config'
 
-// Type declarations
+/**
+ * Global type declarations for Cypress namespace
+ */
 declare global {
 	namespace Cypress {
 		interface Cypress {
@@ -28,32 +19,28 @@ declare global {
 		}
 
 		interface Chainable {
-			// Add custom commands types here if needed
 			login(username: string, password: string): Chainable<void>
-			// Add other custom commands as needed
 		}
 	}
 }
 
-// Configuration setup function
+/**
+ * Configures global Cypress settings and error handling.
+ */
 function setupGlobalConfig(): void {
-	// Individual config settings
 	Cypress.config('defaultCommandTimeout', BaseConfig.timeouts.defaultTimeout)
 	Cypress.config('pageLoadTimeout', BaseConfig.timeouts.pageLoad)
 
-	// Update the error handling function
 	Cypress.on('uncaught:exception', (err, runnable) => {
-		// Log the error for debugging
 		console.log('Uncaught exception:', err.message)
-
-		// Prevent the error from failing the test
 		return false
 	})
 }
 
-// Request interception setup
+/**
+ * Sets up request interception for analytics blocking and header management.
+ */
 function setupRequestInterception(): void {
-	// Block tracking and analytics requests with better error handling
 	cy.intercept({
 		url: /(google-analytics|analytics|doubleclick|gtag|ga|tracking|telemetry)/
 	}, (req) => {
@@ -64,12 +51,11 @@ function setupRequestInterception(): void {
 		}
 	})
 
-	// Handle the request headers more safely
 	cy.intercept('*', (req) => {
 		try {
 			req.headers['accept-encoding'] = 'gzip, deflate'
 
-			// Safely remove tracking headers
+			// Remove tracking headers
 			if (req.headers['x-analytics']) delete req.headers['x-analytics']
 			if (req.headers['x-tracking']) delete req.headers['x-tracking']
 			if (req.headers['x-telemetry']) delete req.headers['x-telemetry']
@@ -82,12 +68,11 @@ function setupRequestInterception(): void {
 // Initialize configuration
 setupGlobalConfig()
 
-// SSL and security configuration
+/**
+ * Global test hooks
+ */
 beforeEach(() => {
-	// Set up request interception
 	setupRequestInterception()
-
-	// Log URL for debugging
 	cy.url().then(url => {
 		Cypress.log({
 			name: 'Current URL',
@@ -96,7 +81,6 @@ beforeEach(() => {
 	})
 })
 
-// Optional: Add afterEach hook for cleanup if needed
 afterEach(() => {
-	// Clean up any test-specific state if needed
+	// Test cleanup hook
 })

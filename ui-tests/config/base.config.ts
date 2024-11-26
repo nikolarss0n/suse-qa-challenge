@@ -1,5 +1,3 @@
-// config/base.config.ts
-
 export const BaseConfig = {
 	apiPath: '/v3',
 	routes: {

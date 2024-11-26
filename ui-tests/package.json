@@ -3,16 +3,21 @@
 	"version": "1.0.0",
 	"main": "index.js",
 	"scripts": {
+		"check": "biome check .",
 		"format": "biome format .",
 		"format:check": "biome format . --check",
 		"lint": "biome lint .",
-		"check": "biome check .",
-		"ci": "npm run format:check && npm run lint",
-		"test": "cypress run",
-		"test:open": "cypress open",
 		"type-check": "tsc --noEmit",
-		"test:local": "bash scripts/run-local-tests.sh",
-		"test:ci": "cypress run"
+
+		"ci": "npm run format:check && npm run lint",
+
+		"test": "cypress run",
+		"test:ci": "cypress run",
+		"test:open": "cypress open",
+		"test:local": "npm run rancher:start && cypress run && npm run rancher:stop",
+
+		"rancher:start": "bash scripts/rancher-local.sh start",
+		"rancher:stop": "bash scripts/rancher-local.sh stop"
 	},
 	"keywords": [],
 	"author": "",
