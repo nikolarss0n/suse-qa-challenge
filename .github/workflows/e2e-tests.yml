@@ -16,6 +16,8 @@ jobs:
     runs-on: ubuntu-latest
     
     env:
+      ADMIN_USERNAME: ${{ secrets.RANCHER_ADMIN_USERNAME }}
+      ADMIN_PASSWORD: ${{ secrets.RANCHER_ADMIN_PASSWORD }}
       RANCHER_PORT: 8443
       RANCHER_URL: https://localhost:8443
 
