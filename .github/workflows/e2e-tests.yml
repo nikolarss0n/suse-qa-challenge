@@ -1,18 +1,15 @@
 name: Rancher Test Workflow
 
 on:
-  # Workflow dispatch allows manual triggering from any branch
   workflow_dispatch:
-  
-  # For automated runs on specific branches
   push:
     branches:
-      - main          # For maintaining the workflow file
-      - 'test/**'     # For any test branches
-      - 'feature/**'  # For feature branches that need testing
+      - main
+      - 'test/**'
+      - 'feature/**'
   pull_request:
     branches:
-      - main         # For PRs targeting main
+      - main
 
 jobs:
   test:
@@ -51,12 +48,11 @@ jobs:
 
       - name: Initialize Rancher and get auth token
         run: |
-          # Additional wait to ensure API stability
           sleep 30
           
           echo "Attempting to get authentication token..."
           TOKEN=$(curl -sk "${RANCHER_URL}/v3-public/localProviders/local?action=login" \
-            -H 'content-type: application/json' \
+            -H 'content-content: application/json' \
             --data-raw "{\"username\":\"admin\",\"password\":\"${{ secrets.RANCHER_ADMIN_PASSWORD }}\"}" \
             | jq -r .token)
           
@@ -78,6 +74,7 @@ jobs:
       - name: Run Cypress tests
         uses: cypress-io/github-action@v6
         with:
+          working-directory: ui-tests
           config: baseUrl=${RANCHER_URL}
         env:
           CYPRESS_VERIFY_SSL: false
@@ -89,8 +86,8 @@ jobs:
         with:
           name: cypress-artifacts
           path: |
-            cypress/videos
-            cypress/screenshots
+            ui-tests/cypress/videos
+            ui-tests/cypress/screenshots
 
       - name: Cleanup
         if: always()
