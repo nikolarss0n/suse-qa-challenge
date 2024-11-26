@@ -5,8 +5,10 @@ import { sessionService } from '@/services/session.service';
 import type { TestData } from '@/types/test-data';
 
 describe('Rancher Manager E2E Tests', () => {
-	cy.fixture('test-data.json').then((testData) => {
-		authService.setupLogin(testData.login.password);
+	before(() => {
+		cy.fixture('test-data.json').then((testData) => {
+			authService.setupLogin(testData.login.password);
+		});
 	});
 
 	beforeEach(() => {
