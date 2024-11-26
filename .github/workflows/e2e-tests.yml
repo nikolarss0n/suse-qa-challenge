@@ -1,10 +1,18 @@
 name: Rancher Test Workflow
 
 on:
+  # Workflow dispatch allows manual triggering from any branch
+  workflow_dispatch:
+  
+  # For automated runs on specific branches
   push:
-    branches: [ main ]
+    branches:
+      - main          # For maintaining the workflow file
+      - 'test/**'     # For any test branches
+      - 'feature/**'  # For feature branches that need testing
   pull_request:
-    branches: [ main ]
+    branches:
+      - main         # For PRs targeting main
 
 jobs:
   test:
@@ -12,168 +20,68 @@ jobs:
     
     env:
       RANCHER_PORT: 8443
-
-    services:
-      rancher:
-        image: rancher/rancher:latest
-        ports:
-          - 8443:443
-        env:
-          CATTLE_BOOTSTRAP_PASSWORD: ${{ secrets.RANCHER_ADMIN_PASSWORD }}
-          CATTLE_SYSTEM_DEFAULT_REGISTRY: ""
-          CATTLE_TOKEN_KEY: ""
-        options: >-
-          --privileged
-          --restart=unless-stopped
+      RANCHER_URL: https://localhost:8443
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Debug Docker Environment
+      - name: Start Rancher container
         run: |
-          echo "Docker version:"
-          docker version
-          echo "Docker info:"
-          docker info
-          echo "Available images:"
-          docker images
-          echo "Network status:"
-          docker network ls
-          echo "Current containers:"
-          docker ps -a
-
-      - name: Generate SSL certificate
-        run: |
-          mkdir -p ./certs
-          openssl req -x509 -newkey rsa:4096 -sha256 -days 3650 \
-            -nodes -keyout ./certs/server.key -out ./certs/server.crt \
-            -subj "/CN=localhost" -addext "subjectAltName=DNS:localhost"
-          echo "SSL certificate generated successfully"
-          ls -la ./certs
+          docker run -d \
+            --name rancher \
+            --privileged \
+            -p 8443:443 \
+            -e CATTLE_BOOTSTRAP_PASSWORD=${{ secrets.RANCHER_ADMIN_PASSWORD }} \
+            -e CATTLE_SYSTEM_DEFAULT_REGISTRY="" \
+            -e CATTLE_TOKEN_KEY="" \
+            rancher/rancher:latest
 
       - name: Wait for Rancher to be ready
+        timeout-minutes: 10
         run: |
-          echo "Starting Rancher initialization check..."
-          echo "Current timestamp: $(date)"
-          
-          # Function to get container logs
-          get_container_logs() {
-            echo "=== Container Logs ==="
-            docker logs $(docker ps -q --filter "ancestor=rancher/rancher:latest") 2>&1 || echo "Failed to get container logs"
-            echo "===================="
-          }
-          
-          # Function to check container status
-          check_container_status() {
-            echo "=== Container Status ==="
-            docker ps -a --filter "ancestor=rancher/rancher:latest" --format "table {{.ID}}\t{{.Status}}\t{{.Ports}}"
-            echo "======================="
-          }
-          
-          # Function to test Rancher API
-          test_rancher_api() {
-            local url="https://localhost:8443"
-            echo "Testing Rancher API at $url"
-            echo "Curl version: $(curl --version | head -n 1)"
-            
-            # Full curl debug output
-            curl -k -v "$url/ping" 2>&1 || echo "Curl command failed"
-            
-            # Get HTTP status code
-            local status=$(curl -k -s -o /dev/null -w "%{http_code}" "$url/ping")
-            echo "HTTP Status Code: $status"
-            
-            # Get response headers
-            echo "Response Headers:"
-            curl -k -s -D - "$url/ping" -o /dev/null || echo "Failed to get headers"
-          }
-
-          # Main loop
-          for i in {1..24}; do
-            echo "\n=== Attempt $i ($(date)) ==="
-            
-            # Check if container exists and is running
-            CONTAINER_ID=$(docker ps -q --filter "ancestor=rancher/rancher:latest")
-            if [ -z "$CONTAINER_ID" ]; then
-              echo "Error: Rancher container not found"
-              check_container_status
-              exit 1
-            fi
-            
-            # Get detailed container status
-            STATUS=$(docker inspect -f "{{.State.Status}}" $CONTAINER_ID)
-            HEALTH=$(docker inspect -f "{{.State.Health.Status}}" $CONTAINER_ID || echo "health check not configured")
-            STARTED_AT=$(docker inspect -f "{{.State.StartedAt}}" $CONTAINER_ID)
-            
-            echo "Container ID: $CONTAINER_ID"
-            echo "Status: $STATUS"
-            echo "Health: $HEALTH"
-            echo "Started At: $STARTED_AT"
-            
-            if [ "$STATUS" = "running" ]; then
-              echo "Container is running, checking API availability..."
-              
-              # Try multiple times to get UI status
-              for j in {1..3}; do
-                echo "\n--- API Check Attempt $j ---"
-                test_rancher_api
-                
-                UI_STATUS=$(curl -k -s -o /dev/null -w "%{http_code}" https://localhost:8443/ping)
-                if [ "$UI_STATUS" -eq 200 ]; then
-                  echo "Success! Rancher API is responding properly"
-                  echo "Final container status:"
-                  check_container_status
-                  exit 0
-                fi
-                
-                echo "API not ready yet (status: $UI_STATUS), waiting 5 seconds..."
-                sleep 5
-              done
-            fi
-            
-            echo "Container status details:"
-            check_container_status
-            
-            echo "Recent container logs:"
-            get_container_logs
-            
-            echo "Still waiting... ($((i * 5)) seconds elapsed)"
-            sleep 5
+          echo "Waiting for Rancher to initialize..."
+          until curl -sk ${RANCHER_URL}/ping > /dev/null 2>&1; do
+            echo "Waiting for Rancher API..."
+            docker ps -a --filter name=rancher
+            docker logs rancher --tail 20
+            sleep 30
           done
-          
-          echo "Error: Rancher failed to initialize within 120 seconds."
-          echo "Final container status:"
-          check_container_status
-          echo "Final container logs:"
-          get_container_logs
-          exit 1
+          echo "Rancher is ready!"
 
-      - name: Initialize Rancher
+      - name: Initialize Rancher and get auth token
         run: |
-          # Wait a bit more after UI is up to ensure API is ready
-          sleep 10
+          # Additional wait to ensure API stability
+          sleep 30
           
-          FIRST_LOGIN_TOKEN=$(curl -k -s "https://localhost:${RANCHER_PORT}/v3-public/localProviders/local?action=login" \
+          echo "Attempting to get authentication token..."
+          TOKEN=$(curl -sk "${RANCHER_URL}/v3-public/localProviders/local?action=login" \
             -H 'content-type: application/json' \
-            --data-raw "{\"username\":\"admin\",\"password\":\"${{ secrets.RANCHER_ADMIN_PASSWORD }}\"}" | jq -r .token)
+            --data-raw "{\"username\":\"admin\",\"password\":\"${{ secrets.RANCHER_ADMIN_PASSWORD }}\"}" \
+            | jq -r .token)
           
-          if [ -z "$FIRST_LOGIN_TOKEN" ]; then
-            echo "Error: Failed to get login token"
-            curl -k -v "https://localhost:${RANCHER_PORT}/v3-public/localProviders/local?action=login" \
-              -H 'content-type: application/json' \
-              --data-raw "{\"username\":\"admin\",\"password\":\"${{ secrets.RANCHER_ADMIN_PASSWORD }}\"}"
+          if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+            echo "Failed to get authentication token"
+            echo "Rancher container logs:"
+            docker logs rancher
             exit 1
           fi
           
-          echo "CYPRESS_AUTH_TOKEN=$FIRST_LOGIN_TOKEN" >> $GITHUB_ENV
+          echo "Successfully obtained authentication token"
+          echo "CYPRESS_AUTH_TOKEN=$TOKEN" >> $GITHUB_ENV
+
+      - name: Install Cypress dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk2.0-0 libgtk-3-0 libgbm-dev libnotify-dev libgconf-2-4 libnss3 libxss1 libasound2 libxtst6 xauth xvfb
 
       - name: Run Cypress tests
         uses: cypress-io/github-action@v6
         with:
-          config: baseUrl=https://localhost:${{ env.RANCHER_PORT }}
+          config: baseUrl=${RANCHER_URL}
         env:
           CYPRESS_VERIFY_SSL: false
+          CYPRESS_AUTH_TOKEN: ${{ env.CYPRESS_AUTH_TOKEN }}
 
       - name: Upload test artifacts
         if: always()
@@ -183,3 +91,7 @@ jobs:
           path: |
             cypress/videos
             cypress/screenshots
+
+      - name: Cleanup
+        if: always()
+        run: docker rm -f rancher || true
