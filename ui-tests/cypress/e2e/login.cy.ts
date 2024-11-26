@@ -7,8 +7,8 @@ import type { TestData } from '@/types/test-data';
 
 describe('Rancher Manager E2E Tests', () => {
 	before(() => {
-		cy.fixture('test-data.json').then((testData) => {
-			authApiService.setupAdminUser(testData.login.bootstrapPassword)
+		cy.get<TestData>('@testData').then((testData) => {
+			authApiService.setupAdminUser(testData.login.password)
 				.then((response) => {
 					expect(response.status).to.be.oneOf([200, 201]);
 				});
