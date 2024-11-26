@@ -7,6 +7,7 @@ import type { TestData } from '@/types/test-data';
 
 describe('Rancher Manager E2E Tests', () => {
 	before(() => {
+		cy.fixture('test-data.json').as('testData');
 		cy.get<TestData>('@testData').then((testData) => {
 			authApiService.setupAdminUser(testData.login.password)
 				.then((response) => {
@@ -17,7 +18,7 @@ describe('Rancher Manager E2E Tests', () => {
 
 	beforeEach(() => {
 		sessionService.clear();
-		cy.fixture('test-data.json').as('testData');
+		// cy.fixture('test-data.json').as('testData');
 	});
 
 
