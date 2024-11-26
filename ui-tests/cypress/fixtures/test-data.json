@@ -1,8 +1,4 @@
 {
-	"login": {
-		"username": "${ADMIN_USERNAME}",
-		"password": "${ADMIN_PASSWORD}"
-	},
 	"expectedTitle": "Rancher",
 	"errorMessages": {
 		"invalidCredentials": "Invalid username or password.",

@@ -21,7 +21,9 @@ export default defineConfig({
     baseUrl: process.env.CYPRESS_BASE_URL || 'https://localhost:8443',
     env: {
       RANCHER_URL: process.env.CYPRESS_RANCHER_URL || 'https://localhost:8443',
-      BASE_URL: process.env.CYPRESS_BASE_URL || 'https://localhost:8443'
+      BASE_URL: process.env.CYPRESS_BASE_URL || 'https://localhost:8443',
+      ADMIN_USERNAME: process.env.ADMIN_USERNAME,
+      ADMIN_PASSWORD: process.env.ADMIN_PASSWORD
     },
     setupNodeEvents(on, config) {
       // Webpack preprocessor configuration

@@ -1,4 +1,5 @@
 import { BaseConfig } from '@/config/base.config';
+import { credentials } from '@/config/creedentials';
 import { authService } from '@/services/auth.service';
 import { dashboardService } from '@/services/dashboard.service';
 import { sessionService } from '@/services/session.service';
@@ -11,7 +12,7 @@ describe('Rancher Manager E2E Tests', () => {
 		// Load test data once before all tests and init setup login
 		cy.fixture('test-data.json').then((data) => {
 			testData = data;
-			authService.setupLogin(testData.login.username, testData.login.password);
+			authService.setupLogin(credentials.username, credentials.password);
 		});
 	});
 
@@ -20,12 +21,12 @@ describe('Rancher Manager E2E Tests', () => {
 		sessionService.clear();
 
 		// Perform standard login
-		authService.login(testData.login.username, testData.login.password);
+		authService.login(credentials.username, credentials.password);
 	});
 
 	it('should login into Rancher web page', () => {
 		// Click on the user menu and assert the username is displayed
-		dashboardService.verifyUsername(testData.login.username);
+		dashboardService.verifyUsername(credentials.username);
 	});
 
 	it('should check if the main web page opens up', () => {
