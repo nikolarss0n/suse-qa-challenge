@@ -19,8 +19,6 @@ Built on Docker containers and GitHub Actions, this workflow provides automated 
 - Docker (20.10 or newer) – For containerized Rancher deployments
 - Node.js (18.x or newer) – Required for Cypress and supporting scripts
 - npm – To manage dependencies
-- GitHub Secrets:
-  - `RANCHER_ADMIN_PASSWORD`: The admin password for Rancher initialization
 
 ## Installation
 
@@ -41,12 +39,6 @@ npm ci
 ```bash
 docker info
 ```
-
-### CI/CD Setup
-
-Ensure the following files are configured for CI/CD:
-- GitHub Workflow: `.github/workflows/ui-tests.yml`
-- Secrets: Add `RANCHER_ADMIN_PASSWORD` in the repository settings
 
 ## Running Tests
 
@@ -79,16 +71,14 @@ Push changes to any of the following branches to trigger the automated workflow:
 - `test/**`
 - `feature/**`
 
-View test results and artifacts in the Actions tab on GitHub.
-
 ## Folder Structure
 
 ```
 ui-tests/
 ├── cypress/             # Cypress test specifications, fixtures, and support files
-│   ├── support/         # Service layer and helper utilities
+│   ├── e2e/             # E2E test cases
 │   ├── fixtures/        # Test data and mocks
-│   ├── tests/          # E2E test cases
+│   ├── support/         # Service layer and helper utilities
 ├── scripts/             # Shell scripts for local Rancher management
 ├── config/              # TypeScript configuration for test execution
 ├── cypress.config.ts    # Cypress configuration
@@ -107,63 +97,31 @@ The workflow is defined in `.github/workflows/ui-tests.yml`. It performs the fol
 5. Artifact Upload: Stores test artifacts, including videos and screenshots, for debugging
 6. Cleanup: Stops and removes the Rancher container
 
-### Triggering
-
-The workflow is triggered on:
-- Pushes: To `main`, `test/**`, or `feature/**` branches
-- Pull Requests: Targeting `main`
-- Manual Dispatch: Via GitHub UI
-
 ## Configuration
 
 ### Environment Variables
 
 The following environment variables are used in the workflow and local runs:
+- `ADMIN_USERNAME`: Username credentials
+- `ADMIN_PASSWORD`: Password credentials
 - `CYPRESS_BASE_URL`: Base URL for the Rancher instance
 - `CYPRESS_RANCHER_URL`: Rancher API URL
 - `CYPRESS_AUTH_TOKEN`: Authentication token for API interactions
 - `NODE_TLS_REJECT_UNAUTHORIZED`: Bypasses TLS verification (for local testing)
 
-### Timeouts
+### Local development
 
-Timeout values are defined in BaseConfig:
-- Default Timeout: 10 seconds for UI element interactions
-- Page Load Timeout: 30 seconds for navigation
+Local development uses cypress.env.json (gitignored):
+
+```json
+{
+  "ADMIN_USERNAME": "username",
+  "ADMIN_PASSWORD": "password"
+}
+```
 
 ### Reporting
 
 Test results, videos, and screenshots are saved in:
 - Local Runs: `cypress/videos` and `cypress/screenshots`
 - CI/CD Runs: Available as workflow artifacts in GitHub Actions
-
-## Troubleshooting
-
-### Common Issues
-
-1. Rancher Not Starting: Ensure Docker has sufficient resources
-2. Authentication Failure: Verify `RANCHER_ADMIN_PASSWORD` is correctly configured
-3. SSL Errors: Set `NODE_TLS_REJECT_UNAUTHORIZED=0` for local testing
-
-### Debugging
-
-1. Check Docker logs:
-```bash
-docker logs rancher
-```
-
-2. Review test artifacts:
-   - Videos: `ui-tests/cypress/videos`
-   - Screenshots: `ui-tests/cypress/screenshots`
-
-## Contributing
-
-1. Fork the repository and create a feature branch
-2. Adhere to existing code conventions and folder structures
-3. Run `npm run ci` to validate formatting, linting, and type-checking
-4. Submit a pull request with a clear description of changes
-
-## Support
-
-For any issues or inquiries:
-- Open a GitHub issue in this repository
-- Contact the project maintainers for enterprise support
