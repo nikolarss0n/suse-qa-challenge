@@ -1,12 +1,18 @@
 name: Rancher Test Workflow
 
 on:
+  # Workflow dispatch allows manual triggering from any branch
+  workflow_dispatch:
+  
+  # For automated runs on specific branches
   push:
     branches:
-      - test-rancher  # Changed to your test branch
+      - main          # For maintaining the workflow file
+      - 'test/**'     # For any test branches
+      - 'feature/**'  # For feature branches that need testing
   pull_request:
-    branches: 
-      - test-rancher  # Changed to your test branch
+    branches:
+      - main         # For PRs targeting main
 
 jobs:
   test:
@@ -75,7 +81,6 @@ jobs:
           config: baseUrl=${RANCHER_URL}
         env:
           CYPRESS_VERIFY_SSL: false
-          # Add any other Cypress environment variables you need
           CYPRESS_AUTH_TOKEN: ${{ env.CYPRESS_AUTH_TOKEN }}
 
       - name: Upload test artifacts
