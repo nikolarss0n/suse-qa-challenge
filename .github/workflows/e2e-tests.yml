@@ -32,7 +32,13 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
+          sudo apt-get remove -y containerd
           sudo apt-get install -y jq docker.io git
+
+      - name: Clean Up APT
+        run: |
+          sudo apt-get autoremove -y
+          sudo apt-get autoclean
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
