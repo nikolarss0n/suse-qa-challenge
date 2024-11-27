@@ -66,9 +66,9 @@ jobs:
         id: get_ip
         working-directory: terraform
         run: |
-          FULL_OUTPUT=$(terraform output -raw instance_ip)
-          IP=$(echo "$FULL_OUTPUT" | cut -d: -f1)  # Get everything before first colon
-          echo "Got IP: $IP"
+          bash ../scripts/get_ip.sh > ip_output.txt
+          IP=$(grep "Cleaned IP:" ip_output.txt | cut -d' ' -f3)
+          echo "Found IP: $IP"
           echo "ip=$IP" >> "$GITHUB_OUTPUT"
 
       - name: Setup Go
