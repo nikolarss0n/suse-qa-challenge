@@ -26,9 +26,11 @@ jobs:
       RANCHER_URL: https://localhost:8443
 
     steps:
+      # Checkout the repository
       - name: Checkout Repository
         uses: actions/checkout@v3
 
+      # Install Docker
       - name: Remove Existing Docker Packages
         run: |
           sudo apt-get remove -y docker docker-engine docker.io containerd runc || true
@@ -62,79 +64,46 @@ jobs:
         run: |
           sudo docker run hello-world
 
+      # Set up Terraform
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: '1.4.6' # Specify your Terraform version
+          terraform_version: '1.4.6'
 
-      - name: Terraform Init
-        working-directory: terraform
-        run: terraform init
-
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1
-        with:
-          project_id: ${{ secrets.GCP_PROJECT_ID }}
-
+      # Authenticate to Google Cloud
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v1
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      - name: Check Active Service Account
-        run: |
-          echo "Current active account:"
-          gcloud auth list
-          echo "Current project:"
-          gcloud config list project
-          echo "Service account details:"
-          gcloud iam service-accounts describe $(gcloud auth list --filter=status:ACTIVE --format="value(account)")
-
-      - name: Enable Compute Engine API
-        run: |
-          gcloud services enable compute.googleapis.com
-          sleep 60  # Give it time to fully propagate
-
-      - name: Install jq
-        run: sudo apt-get install -y jq
-
-      - name: Verify GCP Credentials
+      - name: Terraform Init
         working-directory: terraform
-        run: |
-          echo '${{ secrets.GCP_SA_KEY }}' > credentials.json
-          if ! jq '.' credentials.json >/dev/null 2>&1; then
-            echo "Error: Invalid JSON in GCP credentials"
-            exit 1
-          fi
+        run: terraform init
 
+      # Apply Terraform Configuration
       - name: Terraform Apply
         working-directory: terraform
         env:
           GOOGLE_CREDENTIALS: ${{ secrets.GCP_SA_KEY }}
         run: |
-          # Write credentials with proper JSON formatting
-          echo '${{ secrets.GCP_SA_KEY }}' > credentials.json
-          
-          # Verify the JSON is valid (optional but helpful for debugging)
-          cat credentials.json | jq '.' || echo "Invalid JSON detected"
-          
           terraform apply -auto-approve \
             -var "project=${{ secrets.GCP_PROJECT_ID }}" \
-            -var "credentials_file=credentials.json" \
             -var "region=us-central1" \
-            -var "machine_type=e2-medium" \
             -var "zone=us-central1-a" \
             -var 'tags=["rancher-server","http-server","https-server"]' \
+            -var "machine_type=e2-medium" \
             -var "image_project=debian-cloud" \
             -var "image_family=debian-11" \
             -var "network=default" \
             -var "subnetwork=default"
 
+      # Retrieve VM IP
       - name: Retrieve VM IP
         id: get_ip
         working-directory: terraform
         run: echo "ip=$(terraform output -raw instance_ip)" >> $GITHUB_OUTPUT
 
+      # Wait for Rancher API
       - name: Wait for Rancher API to be Ready
         run: |
           echo "Waiting for Rancher API at ${{ steps.get_ip.outputs.ip }}..."
@@ -144,6 +113,7 @@ jobs:
           done
           echo "Rancher API is available."
 
+      # Set up Go Environment
       - name: Setup Go Environment
         uses: actions/setup-go@v4
         with:
@@ -151,6 +121,7 @@ jobs:
           cache: true
           cache-dependency-path: api-tests/go.sum
 
+      # Set up Node.js Environment
       - name: Setup Node.js Environment
         uses: actions/setup-node@v3
         with:
@@ -158,13 +129,12 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'ui-tests/package-lock.json'
 
-      # Conditional Steps for API Tests
+      # Conditional API Tests
       - name: Setup API Tests
         if: ${{ github.event.inputs.test_suite == 'api' || github.event.inputs.test_suite == 'all' }}
         working-directory: api-tests
         run: |
-          # Assuming config.yml is already created by the script on VM
-          echo "Config.yml is already created by rancher-local.sh on the VM"
+          echo "Preparing API tests..."
           go mod download
 
       - name: Run API Tests
@@ -172,7 +142,7 @@ jobs:
         working-directory: api-tests
         run: go test -v ./...
 
-      # Conditional Steps for UI Tests
+      # Conditional UI Tests
       - name: Install UI Dependencies
         if: ${{ github.event.inputs.test_suite == 'ui' || github.event.inputs.test_suite == 'all' }}
         working-directory: ui-tests
@@ -192,6 +162,7 @@ jobs:
           CYPRESS_CHROME_WEB_SECURITY: false
           CYPRESS_AUTH_TOKEN: ${{ secrets.CYPRESS_AUTH_TOKEN }}
 
+      # Upload Test Artifacts
       - name: Upload Test Artifacts
         if: always()
         uses: actions/upload-artifact@v3
@@ -202,18 +173,19 @@ jobs:
             ui-tests/cypress/screenshots
             api-tests/test-reports
 
-      - name: Set up SSH key
+      # Set up SSH Key
+      - name: Set up SSH Key
         uses: webfactory/ssh-agent@v0.5.4
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
+      # Cleanup Rancher
       - name: Cleanup Rancher
         if: always()
         run: |
           ssh -o StrictHostKeyChecking=no ubuntu@${{ steps.get_ip.outputs.ip }} "./scripts/rancher-local.sh stop"
-        env:
-          GITHUB_ENV: $GITHUB_ENV
 
+      # Destroy Terraform Resources
       - name: Terraform Destroy
         if: always()
         working-directory: terraform
@@ -222,4 +194,5 @@ jobs:
         run: |
           terraform destroy -auto-approve \
             -var "project=${{ secrets.GCP_PROJECT_ID }}" \
-            -var "credentials_file=credentials.json"
+            -var "region=us-central1" \
+            -var "zone=us-central1-a"
