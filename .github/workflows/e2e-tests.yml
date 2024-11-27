@@ -67,9 +67,15 @@ jobs:
         working-directory: terraform
         run: |
           bash get_ip.sh > ip_output.txt
-          IP=$(grep "Cleaned IP:" ip_output.txt | cut -d' ' -f3)
-          echo "Found IP: $IP"
-          echo "ip=$IP" >> "$GITHUB_OUTPUT"
+          VM_IP=$(grep -oP 'Cleaned IP: \K[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' ip_output.txt)
+          if [[ -z "$VM_IP" ]]; then
+            echo "Error: Unable to retrieve VM IP."
+            cat ip_output.txt
+            exit 1
+          fi
+          echo "Found VM IP: $VM_IP"
+          echo "ip=$VM_IP" >> "$GITHUB_OUTPUT"
+
 
       - name: Setup Go
         if: inputs.test_suite == 'api' || inputs.test_suite == 'all'
@@ -93,7 +99,6 @@ jobs:
           timeout=300
           while ! curl -k https://${{ steps.get_ip.outputs.ip }} -s -f -o /dev/null && [ $timeout -gt 0 ]; do
             echo "Waiting for Rancher to be ready... ($timeout seconds remaining)"
-            echo "Testing connection with verbose output:"
             curl -k -v https://${{ steps.get_ip.outputs.ip }} || true
             sleep 10
             timeout=$((timeout - 10))
@@ -102,6 +107,7 @@ jobs:
             echo "Timeout waiting for Rancher"
             exit 1
           fi
+
 
       - name: API Tests
         if: inputs.test_suite == 'api' || inputs.test_suite == 'all'
@@ -122,6 +128,7 @@ jobs:
           CYPRESS_BASE_URL: https://${{ steps.get_ip.outputs.ip }}
           CYPRESS_VERIFY_SSL: false
           NODE_TLS_REJECT_UNAUTHORIZED: '0'
+
 
       - name: Upload Test Results
         if: always()
