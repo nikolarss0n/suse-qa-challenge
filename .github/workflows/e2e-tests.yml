@@ -65,7 +65,10 @@ jobs:
       - name: Get VM IP
         id: get_ip
         working-directory: terraform
-        run: echo "ip=$(terraform output -raw instance_ip)" >> $GITHUB_OUTPUT
+        run: |
+          IP=$(terraform output -raw instance_ip)
+          echo "VM IP is: $IP"  # Debug output
+          echo "ip=$IP" >> "$GITHUB_OUTPUT"
 
       - name: Setup Go
         if: inputs.test_suite == 'api' || inputs.test_suite == 'all'
