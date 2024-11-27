@@ -71,19 +71,36 @@ jobs:
         working-directory: terraform
         run: terraform init
 
+      - name: Install jq
+        run: sudo apt-get install -y jq
+
+      - name: Verify GCP Credentials
+        working-directory: terraform
+        run: |
+          echo '${{ secrets.GCP_SA_KEY }}' > credentials.json
+          if ! jq '.' credentials.json >/dev/null 2>&1; then
+            echo "Error: Invalid JSON in GCP credentials"
+            exit 1
+          fi
+
       - name: Terraform Apply
         working-directory: terraform
         env:
           GOOGLE_CREDENTIALS: ${{ secrets.GCP_SA_KEY }}
         run: |
-          echo "${{ secrets.GCP_SA_KEY }}" > credentials.json
+          # Write credentials with proper JSON formatting
+          echo '${{ secrets.GCP_SA_KEY }}' > credentials.json
+          
+          # Verify the JSON is valid (optional but helpful for debugging)
+          cat credentials.json | jq '.' || echo "Invalid JSON detected"
+          
           terraform apply -auto-approve \
             -var "project=${{ secrets.GCP_PROJECT_ID }}" \
             -var "credentials_file=credentials.json" \
             -var "region=us-central1" \
             -var "machine_type=e2-medium" \
             -var "zone=us-central1-a" \
-            -var 'tags=["rancher-server", "http-server", "https-server"]' \
+            -var 'tags=["rancher-server","http-server","https-server"]' \
             -var "image_project=debian-cloud" \
             -var "image_family=debian-11" \
             -var "network=default" \
