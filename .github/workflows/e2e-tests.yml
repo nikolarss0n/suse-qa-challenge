@@ -71,6 +71,11 @@ jobs:
         working-directory: terraform
         run: terraform init
 
+        
+      - name: Debug GCP Credentials
+        run: |
+            echo '${{ secrets.GCP_SA_KEY }}' | jq 'with_entries(select(.key | test("^(type|project_id|client_email)$")))' || echo "Invalid JSON format"
+
       - name: Install jq
         run: sudo apt-get install -y jq
 
