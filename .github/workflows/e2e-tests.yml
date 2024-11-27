@@ -75,18 +75,14 @@ jobs:
         uses: google-github-actions/setup-gcloud@v1
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
-          service_account_key: ${{ secrets.GCP_SA_KEY }}
 
-      - name: Authenticate with Google Cloud
-        run: |
-          echo '${{ secrets.GCP_SA_KEY }}' > key.json
-          gcloud auth activate-service-account --key-file=key.json
-          rm key.json
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      - name: Disable and Re-enable Compute Engine API
+      - name: Enable Compute Engine API
         run: |
-          gcloud services disable compute.googleapis.com
-          sleep 30
           gcloud services enable compute.googleapis.com
           sleep 60  # Give it time to fully propagate
 
