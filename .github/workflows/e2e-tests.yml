@@ -6,10 +6,10 @@ on:
       test_suite:
         description: 'Select the test suite to run'
         required: true
-        default: 'both'
+        default: 'all'
         type: choice
         options:
-          - both
+          - all
           - ui
           - api
   push:
@@ -62,7 +62,7 @@ jobs:
 
       # Conditional Steps for API Tests
       - name: Setup API Tests
-        if: ${{ github.event.inputs.test_suite == 'api' || github.event.inputs.test_suite == 'both' }}
+        if: ${{ github.event.inputs.test_suite == 'api' || github.event.inputs.test_suite == 'all' }}
         working-directory: api-tests
         run: |
           # Assuming config.yml is already created by the script
@@ -70,18 +70,18 @@ jobs:
           go mod download
 
       - name: Run API Tests
-        if: ${{ github.event.inputs.test_suite == 'api' || github.event.inputs.test_suite == 'both' }}
+        if: ${{ github.event.inputs.test_suite == 'api' || github.event.inputs.test_suite == 'all' }}
         working-directory: api-tests
         run: go test -v ./...
 
       # Conditional Steps for UI Tests
       - name: Install UI Dependencies
-        if: ${{ github.event.inputs.test_suite == 'ui' || github.event.inputs.test_suite == 'both' }}
+        if: ${{ github.event.inputs.test_suite == 'ui' || github.event.inputs.test_suite == 'all' }}
         working-directory: ui-tests
         run: npm ci
 
       - name: Run UI Tests
-        if: ${{ github.event.inputs.test_suite == 'ui' || github.event.inputs.test_suite == 'both' }}
+        if: ${{ github.event.inputs.test_suite == 'ui' || github.event.inputs.test_suite == 'all' }}
         uses: cypress-io/github-action@v6
         with:
           working-directory: ui-tests
