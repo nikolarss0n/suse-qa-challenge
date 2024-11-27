@@ -96,12 +96,10 @@ jobs:
             -var "region=us-central1" \
             -var "zone=us-central1-a" \
             -var "machine_type=e2-medium" \
-            -var 'tags=["rancher-server","http-server","https-server"]' | tee apply.log
-          ip=$(grep -oE 'instance_ip = "([0-9]{1,3}\.){3}[0-9]{1,3}"' apply.log | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}')
-          if [[ -z "$ip" ]]; then
-            echo "Error: instance_ip not found in apply output."
-            exit 1
-          fi
+            -var 'tags=["rancher-server","http-server","https-server"]'
+          
+          # Extract IP using terraform output command
+          ip=$(terraform output -raw instance_ip)
           echo "ip=$ip" >> $GITHUB_OUTPUT
 
       - name: Wait for Rancher API to be Ready
