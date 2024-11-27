@@ -1,10 +1,11 @@
 package config
 
 import (
-    "github.com/spf13/viper"
-    "github.com/nikolarss0n/suse-qa-challenge/api-tests/internal/logger"
-    "path/filepath"
-    "sync"
+	"path/filepath"
+	"sync"
+
+	"github.com/nikolarss0n/suse-qa-challenge/api-tests/internal/logger"
+	"github.com/spf13/viper"
 )
 
 type Config struct {
@@ -32,9 +33,6 @@ func GetConfig() *Config {
 
         log := logger.GetLogger()
         log.Info("Project root: " + projectRoot)
-
-        // Remove or comment out this line to prevent environment variables from overriding config values
-        // viper.AutomaticEnv()
 
         err = viper.ReadInConfig()
         if err != nil {
