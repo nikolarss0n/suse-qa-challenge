@@ -97,12 +97,20 @@ jobs:
             -var "machine_type=e2-medium" \
             -var 'tags=["rancher-server","http-server","https-server"]'
 
+      - name: Debug Outputs
+        run: terraform output -raw instance_ip
+       
       - name: Retrieve VM IP
         id: get_ip
         working-directory: terraform
         run: |
-          ip=$(terraform output -raw instance_ip | tr -d '%')
+          ip=$(terraform output -raw instance_ip | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}')
+          if [ -z "$ip" ]; then
+            echo "Error: Invalid IP retrieved."
+            exit 1
+          fi
           echo "ip=$ip" >> $GITHUB_OUTPUT
+
 
       - name: Wait for Rancher API to be Ready
         run: |
