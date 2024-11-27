@@ -71,6 +71,19 @@ jobs:
         working-directory: terraform
         run: terraform init
 
+      - name: Terraform Destroy Existing
+        if: always()
+        working-directory: terraform
+        continue-on-error: true
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GCP_SA_KEY }}
+        run: |
+          terraform destroy -auto-approve \
+            -var "project=${{ secrets.GCP_PROJECT_ID }}" \
+            -var "region=us-central1" \
+            -var "zone=us-central1-a" \
+            -var "machine_type=e2-medium" \
+            -var 'tags=["rancher-server","http-server","https-server"]'
         
       - name: Debug GCP Credentials
         run: |
