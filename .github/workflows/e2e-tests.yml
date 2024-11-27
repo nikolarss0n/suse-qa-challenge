@@ -78,23 +78,11 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'ui-tests/package-lock.json'
 
-      - name: Wait for Rancher
-        run: |
-          # Get IP and extract only the first IP address found
-          VM_IP=$(terraform output -raw instance_ip | head -n 1)
-          
-          echo "Attempting to connect to Rancher at https://$VM_IP:8443"
-          timeout=300
-          while ! curl -k https://$VM_IP:8443 -s -f -o /dev/null && [ $timeout -gt 0 ]; do
-            echo "Waiting for Rancher to be ready... ($timeout seconds remaining)"
-            sleep 10
-            timeout=$((timeout - 10))
-          done
-          if [ $timeout -le 0 ]; then
-            echo "Timeout waiting for Rancher"
-            exit 1
-          fi
-
+      - name: Start Rancher and Generate API Tokens
+        run: ./scripts/rancher-local.sh start
+        env:
+          GITHUB_ENV: $GITHUB_ENV
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
 
 
 

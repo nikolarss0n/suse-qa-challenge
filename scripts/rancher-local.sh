@@ -8,6 +8,18 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." &> /dev/null && pwd )"
 CONFIG_PATH="$PROJECT_ROOT/api-tests/config.yml"
 
+# Function to extract the IP address from Terraform output
+get_vm_ip() {
+    VM_IP=$(terraform -chdir="$PROJECT_ROOT/terraform" output -raw instance_ip 2>&1 | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}')
+    
+    if [[ -z "$VM_IP" ]]; then
+        echo -e "${RED}Error: Unable to extract a valid VM IP address from Terraform output.${NC}"
+        exit 1
+    fi
+
+    echo -e "${GREEN}Successfully extracted VM IP: $VM_IP${NC}"
+}
+
 check_docker() {
     if ! docker info >/dev/null 2>&1; then
         echo -e "${RED}Error: Docker is not running${NC}"
@@ -27,7 +39,7 @@ generate_token() {
     echo "Waiting for Rancher API to be fully ready..."
     sleep 30
 
-    ADMIN_TOKEN=$(curl -sk 'https://localhost:8443/v3-public/localProviders/local?action=login' \
+    ADMIN_TOKEN=$(curl -sk "https://$VM_IP:8443/v3-public/localProviders/local?action=login" \
         -H 'content-type: application/json' \
         --data-raw '{"username":"admin","password":"adminpassword"}' \
         | jq -r .token)
@@ -38,7 +50,7 @@ generate_token() {
     fi
 
     # Store the entire API token response
-    API_TOKEN_RESPONSE=$(curl -sk 'https://localhost:8443/v3/token' \
+    API_TOKEN_RESPONSE=$(curl -sk "https://$VM_IP:8443/v3/token" \
         -H 'content-type: application/json' \
         -H "Authorization: Bearer $ADMIN_TOKEN" \
         --data-raw '{"type":"token","description":"api-test-token"}')
@@ -59,7 +71,7 @@ generate_token() {
 
     # Generate config file with the correct token format
     cat > "$CONFIG_PATH" << EOF
-base_url: "https://localhost:8443"
+base_url: "https://$VM_IP:8443"
 username: "$USERNAME"
 password: "$ACTUAL_TOKEN"
 EOF
@@ -76,6 +88,7 @@ EOF
         echo "API_TOKEN=$ACTUAL_TOKEN" >> "$GITHUB_ENV"
         echo "API_USERNAME=$USERNAME" >> "$GITHUB_ENV"
         echo "CYPRESS_AUTH_TOKEN=$ADMIN_TOKEN" >> "$GITHUB_ENV"
+        echo "RANCHER_URL=https://$VM_IP:8443" >> "$GITHUB_ENV"
         echo -e "${GREEN}Environment variables exported to GITHUB_ENV${NC}"
     fi
 }
@@ -89,11 +102,11 @@ start_rancher() {
         rancher/rancher:latest
 
     echo "Waiting for Rancher to become available..."
-    until curl -k -s -o /dev/null -w "%{http_code}" https://localhost:8443/ping | grep -q "200"; do
+    until curl -k -s -o /dev/null -w "%{http_code}" "https://$VM_IP:8443/ping" | grep -q "200"; do
         echo -n "."
         sleep 5
     done
-    echo -e "\n${GREEN}Rancher is ready at https://localhost:8443${NC}"
+    echo -e "\n${GREEN}Rancher is ready at https://$VM_IP:8443${NC}"
     
     generate_token
 }
@@ -115,6 +128,7 @@ case "$1" in
     "start")
         check_docker
         check_dependencies
+        get_vm_ip
         start_rancher
         ;;
     "stop")
