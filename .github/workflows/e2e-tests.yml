@@ -91,6 +91,7 @@ jobs:
         env:
           GOOGLE_CREDENTIALS: ${{ secrets.GCP_SA_KEY }}
         run: |
+          # Run terraform apply and capture output
           terraform apply -auto-approve \
             -var "project=${{ secrets.GCP_PROJECT_ID }}" \
             -var "region=us-central1" \
@@ -98,14 +99,15 @@ jobs:
             -var "machine_type=e2-medium" \
             -var 'tags=["rancher-server","http-server","https-server"]'
           
-          # Extract only the IP address using awk
-          ip=$(terraform output instance_ip | awk -F'"' '{print $2}' | awk -F'::' '{print $1}')
+          # Extract IP using terraform output command and clean the output
+          ip=$(terraform output -raw instance_ip | head -n 1 | tr -d '\n' | tr -d '\r')
           
-          # Verify the IP format
+          # Validate IP format and set output
           if [[ $ip =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "ip=$ip" >> $GITHUB_OUTPUT
+            echo "Successfully extracted IP: $ip"
           else
-            echo "Error: Invalid IP format extracted: $ip"
+            echo "Error: Invalid IP format extracted: '$ip'"
             exit 1
           fi
 
