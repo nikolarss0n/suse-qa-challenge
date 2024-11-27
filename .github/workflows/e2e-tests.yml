@@ -65,16 +65,10 @@ jobs:
       - name: Get VM IP
         id: get_ip
         working-directory: terraform
-        run: |
-          bash get_ip.sh > ip_output.txt
-          VM_IP=$(grep -oP 'Cleaned IP: \K[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' ip_output.txt)
-          if [[ -z "$VM_IP" ]]; then
-            echo "Error: Unable to retrieve VM IP."
-            cat ip_output.txt
-            exit 1
-          fi
-          echo "Found VM IP: $VM_IP"
-          echo "ip=$VM_IP" >> "$GITHUB_OUTPUT"
+        run: bash get_ip.sh
+
+      - name: Use VM IP
+        run: echo "VM IP is ${{ steps.get_ip.outputs.ip }}"
 
 
       - name: Setup Go
