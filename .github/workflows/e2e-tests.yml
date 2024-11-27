@@ -66,21 +66,10 @@ jobs:
         id: get_ip
         working-directory: terraform
         run: |
-          echo "Testing IP retrieval..."
-          echo "Method 1 - Direct terraform output:"
-          terraform output instance_ip
-          echo "Method 2 - Raw output:"
-          IP=$(terraform output -raw instance_ip)
-          echo "Method 3 - With cleanup:"
-          echo "Cleaned IP: $IP"
+          FULL_OUTPUT=$(terraform output -raw instance_ip)
+          IP=$(echo "$FULL_OUTPUT" | cut -d: -f1)  # Get everything before first colon
+          echo "Got IP: $IP"
           echo "ip=$IP" >> "$GITHUB_OUTPUT"
-          echo "Testing if IP is valid..."
-          if [[ $IP =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-              echo "Valid IP format: $IP"
-          else
-              echo "Invalid IP format: $IP"
-              exit 1
-          fi
 
       - name: Setup Go
         if: inputs.test_suite == 'api' || inputs.test_suite == 'all'
