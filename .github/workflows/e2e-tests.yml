@@ -77,6 +77,12 @@ jobs:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
           service_account_key: ${{ secrets.GCP_SA_KEY }}
 
+      - name: Authenticate with Google Cloud
+        run: |
+          echo '${{ secrets.GCP_SA_KEY }}' > key.json
+          gcloud auth activate-service-account --key-file=key.json
+          rm key.json
+
       - name: Disable and Re-enable Compute Engine API
         run: |
           gcloud services disable compute.googleapis.com
