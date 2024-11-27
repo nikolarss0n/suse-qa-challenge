@@ -33,9 +33,4 @@ resource "google_compute_instance" "default" {
     email  = "terraform-deployer@${var.project}.iam.gserviceaccount.com"
     scopes = ["https://www.googleapis.com/auth/cloud-platform"]
   }
-
-  variable "credentials_file" {
-  description = "Path to the GCP service account credentials file"
-  type        = string
-  }
 }
