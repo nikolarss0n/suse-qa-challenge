@@ -84,7 +84,7 @@ jobs:
       - name: Retrieve VM IP
         id: get_ip
         working-directory: terraform
-        run: echo "::set-output name=ip::$(terraform output -raw instance_ip)"
+        run: echo "ip=$(terraform output -raw instance_ip)" >> $GITHUB_OUTPUT
 
       - name: Wait for Rancher API to be Ready
         run: |
