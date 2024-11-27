@@ -70,20 +70,23 @@ jobs:
         with:
           terraform_version: '1.4.6'
 
+      # Install jq for JSON validation
+      - name: Install jq
+        run: sudo apt-get install -y jq
+
       # Authenticate to Google Cloud
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v1
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
+          export_credential_file: true
+          credential_file_path: ./gcloud-key.json
 
-      # Install jq for JSON validation
-      - name: Install jq
-        run: sudo apt-get install -y jq
-
+      # Validate the JSON Key
       # Validate the JSON Key
       - name: Validate GCP Credentials JSON
         run: |
-          jq . "$HOME/gcloud-key.json"
+          jq . ./gcloud-key.json
         shell: bash
 
       # Enable Necessary APIs
