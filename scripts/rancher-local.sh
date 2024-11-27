@@ -102,14 +102,24 @@ start_rancher() {
         rancher/rancher:latest
 
     echo "Waiting for Rancher to become available..."
-    until curl -k -s -o /dev/null -w "%{http_code}" "https://$VM_IP:8443/ping" | grep -q "200"; do
-        echo -n "."
+    timeout=600  # Adjust to a higher timeout if needed (e.g., 10 minutes)
+
+    until curl -k -s -o /dev/null -w "%{http_code}" "https://$VM_IP:8443/ping" | grep -q "200" || [ $timeout -le 0 ]; do
+        echo "Rancher is not ready yet... ($timeout seconds remaining)"
         sleep 5
+        timeout=$((timeout - 5))
     done
-    echo -e "\n${GREEN}Rancher is ready at https://$VM_IP:8443${NC}"
+
+    if [ $timeout -le 0 ]; then
+        echo -e "${RED}Timeout waiting for Rancher to be ready.${NC}"
+        exit 1
+    fi
+
+    echo -e "${GREEN}Rancher is ready at https://$VM_IP:8443${NC}"
     
     generate_token
 }
+
 
 stop_rancher() {
     echo "Stopping Rancher container..."
