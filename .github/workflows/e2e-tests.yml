@@ -85,17 +85,22 @@ jobs:
       - name: Install jq
         run: sudo apt-get install -y jq
 
-      - name: Terraform Apply
+      - name: Debug Terraform Outputs
         working-directory: terraform
-        env:
-          GOOGLE_CREDENTIALS: ${{ secrets.GCP_SA_KEY }}
+        run: terraform output -json
+
+
+      - name: Retrieve VM IP
+        id: get_ip
+        working-directory: terraform
         run: |
-          terraform apply -auto-approve \
-            -var "project=${{ secrets.GCP_PROJECT_ID }}" \
-            -var "region=us-central1" \
-            -var "zone=us-central1-a" \
-            -var "machine_type=e2-medium" \
-            -var 'tags=["rancher-server","http-server","https-server"]'
+          ip=$(terraform output -raw instance_ip 2>/dev/null || echo "No IP found")
+          if [[ -z "$ip" ]]; then
+            echo "Error: instance_ip not retrieved."
+            exit 1
+          fi
+          echo "ip=$ip" >> $GITHUB_OUTPUT
+
 
       - name: Debug Outputs
         run: terraform output -raw instance_ip
