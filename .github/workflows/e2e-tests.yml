@@ -1,4 +1,4 @@
-name: Rancher Test Suite
+name: Infrastructure and Tests
 
 on:
   workflow_dispatch:
@@ -8,26 +8,28 @@ on:
         required: true
         default: 'all'
         type: choice
-        options: [all, ui, api]
+        options:
+          - all
+          - ui
+          - api
   push:
     branches: [main]
   pull_request:
     branches: [main]
 
 jobs:
-  infrastructure:
+  test:
     runs-on: ubuntu-latest
-    outputs:
-      rancher_url: ${{ steps.get_url.outputs.url }}
-    steps:
-      - uses: actions/checkout@v3
+    timeout-minutes: 30
 
-      - uses: hashicorp/setup-terraform@v2
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: '1.4.6'
-
-      - name: Configure GCP Credentials
-        run: echo '${{ secrets.GCP_SA_KEY }}' > credentials.json
 
       - name: Terraform Init
         working-directory: terraform
@@ -38,107 +40,81 @@ jobs:
         env:
           GOOGLE_CREDENTIALS: ${{ secrets.GCP_SA_KEY }}
         run: |
+          echo '${{ secrets.GCP_SA_KEY }}' > credentials.json
           terraform apply -auto-approve \
             -var "project=${{ secrets.GCP_PROJECT_ID }}" \
             -var "credentials_file=credentials.json" \
             -var "zone=us-central1-a" \
             -var "machine_type=e2-medium"
 
-      - name: Wait for Rancher Initialization
+      - name: Get VM IP
+        id: get_ip
         working-directory: terraform
-        id: get_url
-        run: |
-          RANCHER_IP=$(terraform output -raw instance_ip)
-          echo "Waiting for Rancher to initialize..."
-          # Wait for HTTPS endpoint to become available
-          timeout 300 bash -c 'while [[ "$(curl -k -s -o /dev/null -w ''%{http_code}'' https://'$RANCHER_IP')" != "200" ]]; do sleep 5; done'
-          echo "url=https://$RANCHER_IP" >> $GITHUB_OUTPUT
+        run: echo "ip=$(terraform output -raw instance_ip)" >> $GITHUB_OUTPUT
 
-  api-tests:
-    needs: infrastructure
-    if: inputs.test_suite == 'api' || inputs.test_suite == 'all'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - uses: actions/setup-go@v4
+      - name: Setup Go
+        if: inputs.test_suite == 'api' || inputs.test_suite == 'all'
+        uses: actions/setup-go@v4
         with:
           go-version: '1.21'
           cache: true
           cache-dependency-path: api-tests/go.sum
 
-      - name: Run API Tests
-        working-directory: api-tests
-        env:
-          RANCHER_URL: ${{ needs.infrastructure.outputs.rancher_url }}
-        run: |
-          go mod download
-          go test -v ./... -rancher-url=$RANCHER_URL
-
-      - name: Upload API Test Results
-        if: always()
-        uses: actions/upload-artifact@v3
-        with:
-          name: api-test-results
-          path: api-tests/test-reports
-
-  ui-tests:
-    needs: infrastructure
-    if: inputs.test_suite == 'ui' || inputs.test_suite == 'all'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - uses: actions/setup-node@v3
+      - name: Setup Node.js
+        if: inputs.test_suite == 'ui' || inputs.test_suite == 'all'
+        uses: actions/setup-node@v3
         with:
           node-version: '18'
           cache: 'npm'
           cache-dependency-path: 'ui-tests/package-lock.json'
 
-      - name: Run UI Tests
+      - name: Wait for Rancher
+        run: |
+          timeout=300
+          while ! curl -k https://${{ steps.get_ip.outputs.ip }} -s -f -o /dev/null && [ $timeout -gt 0 ]; do
+            echo "Waiting for Rancher to be ready..."
+            sleep 10
+            timeout=$((timeout - 10))
+          done
+          if [ $timeout -le 0 ]; then
+            echo "Timeout waiting for Rancher"
+            exit 1
+          fi
+
+      - name: API Tests
+        if: inputs.test_suite == 'api' || inputs.test_suite == 'all'
+        working-directory: api-tests
+        run: |
+          go mod download
+          go test -v ./...
+
+      - name: UI Tests
+        if: inputs.test_suite == 'ui' || inputs.test_suite == 'all'
         uses: cypress-io/github-action@v6
         with:
           working-directory: ui-tests
           browser: chrome
         env:
-          CYPRESS_BASE_URL: ${{ needs.infrastructure.outputs.rancher_url }}
+          CYPRESS_BASE_URL: ${{ steps.get_ip.outputs.ip }}
           CYPRESS_VERIFY_SSL: false
           NODE_TLS_REJECT_UNAUTHORIZED: '0'
 
-      - name: Upload UI Test Results
+      - name: Upload Test Results
         if: always()
         uses: actions/upload-artifact@v3
         with:
-          name: ui-test-results
+          name: test-artifacts
           path: |
             ui-tests/cypress/videos
             ui-tests/cypress/screenshots
-
-  cleanup:
-    needs: [infrastructure, api-tests, ui-tests]
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - uses: hashicorp/setup-terraform@v2
-        with:
-          terraform_version: '1.4.6'
-
-      - name: Configure GCP Credentials
-        run: echo '${{ secrets.GCP_SA_KEY }}' > credentials.json
-
-      - name: Terraform Init
-        working-directory: terraform
-        run: terraform init
+            api-tests/test-reports
 
       - name: Terraform Destroy
+        if: always()
         working-directory: terraform
         env:
           GOOGLE_CREDENTIALS: ${{ secrets.GCP_SA_KEY }}
         run: |
           terraform destroy -auto-approve \
             -var "project=${{ secrets.GCP_PROJECT_ID }}" \
-            -var "credentials_file=credentials.json" \
-            -var "zone=us-central1-a" \
-            -var "machine_type=e2-medium"
+            -var "credentials_file=credentials.json"
