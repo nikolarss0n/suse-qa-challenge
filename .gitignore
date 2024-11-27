@@ -4,6 +4,10 @@
 .idea/
 .vscode/
 
+*.log
+*.out
+coverage.txt
+
 # Level 1: UI Tests
 ui-tests/node_modules/
 ui-tests/cypress/videos/
@@ -15,6 +19,8 @@ ui-tests/cypress.env.json
 api-tests/bin/
 api-tests/vendor/
 api-tests/*.test
+api-tests/test-reports/
+api-tests/config.yml
 
 # Level 3: Infrastructure
 infrastructure/.terraform/
