@@ -26,6 +26,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Generate SSH Key
+        run: |
+          ssh-keygen -t ed25519 -f ~/.ssh/gh_actions -q -N ""
+          echo "SSH_PUBLIC_KEY=$(cat ~/.ssh/gh_actions.pub)" >> $GITHUB_ENV
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
@@ -40,17 +45,18 @@ jobs:
         env:
           GOOGLE_CREDENTIALS: ${{ secrets.GCP_SA_KEY }}
         run: |
-          echo '${{ secrets.GCP_SA_KEY }}' > credentials.json
           terraform apply -auto-approve \
             -var "project=${{ secrets.GCP_PROJECT_ID }}" \
-            -var "credentials_file=credentials.json" \
             -var "zone=us-central1-a" \
-            -var "machine_type=e2-medium"
+            -var "machine_type=e2-medium" \
+            -var "ssh_public_key=${{ env.SSH_PUBLIC_KEY }}"
 
       - name: Get VM IP
         id: get_ip
         working-directory: terraform
-        run: echo "ip=$(terraform output -raw instance_ip)" >> $GITHUB_OUTPUT
+        run: |
+          echo "ip=$(terraform output -raw instance_ip)" >> $GITHUB_OUTPUT
+          echo "Waiting for Rancher to be ready at ${{ steps.get_ip.outputs.ip }}"
 
       - name: Setup Go
         if: inputs.test_suite == 'api' || inputs.test_suite == 'all'
@@ -84,6 +90,8 @@ jobs:
       - name: API Tests
         if: inputs.test_suite == 'api' || inputs.test_suite == 'all'
         working-directory: api-tests
+        env:
+          RANCHER_URL: https://${{ steps.get_ip.outputs.ip }}
         run: |
           go mod download
           go test -v ./...
@@ -95,7 +103,7 @@ jobs:
           working-directory: ui-tests
           browser: chrome
         env:
-          CYPRESS_BASE_URL: ${{ steps.get_ip.outputs.ip }}
+          CYPRESS_BASE_URL: https://${{ steps.get_ip.outputs.ip }}
           CYPRESS_VERIFY_SSL: false
           NODE_TLS_REJECT_UNAUTHORIZED: '0'
 
@@ -117,4 +125,6 @@ jobs:
         run: |
           terraform destroy -auto-approve \
             -var "project=${{ secrets.GCP_PROJECT_ID }}" \
-            -var "credentials_file=credentials.json"
+            -var "zone=us-central1-a" \
+            -var "machine_type=e2-medium" \
+            -var "ssh_public_key=${{ env.SSH_PUBLIC_KEY }}"

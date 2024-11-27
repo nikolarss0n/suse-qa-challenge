@@ -2,8 +2,7 @@ resource "google_compute_instance" "default" {
   name         = "test-vm"
   machine_type = var.machine_type
   zone         = var.zone
-
-  tags = var.tags
+  tags         = var.tags
 
   boot_disk {
     initialize_params {
@@ -22,11 +21,13 @@ resource "google_compute_instance" "default" {
 
   metadata_startup_script = <<-EOT
     #!/bin/bash
-    echo "Hello, World!" > /var/www/html/index.html
+    curl -fsSL https://get.docker.com -o get-docker.sh
+    sh get-docker.sh
+    docker run -d --restart=unless-stopped -p 80:80 -p 443:443 rancher/rancher
   EOT
 
   metadata = {
-    ssh-keys = "ubuntu:${file("${path.module}/github_actions_key.pub")}"
+    ssh-keys = "ubuntu:${var.ssh_public_key}"
   }
 
   service_account {
