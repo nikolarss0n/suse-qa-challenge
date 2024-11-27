@@ -79,9 +79,15 @@ jobs:
           echo "${{ secrets.GCP_SA_KEY }}" > credentials.json
           terraform apply -auto-approve \
             -var "project=${{ secrets.GCP_PROJECT_ID }}" \
-            -var "credentials_file=credentials.json"
-
-
+            -var "credentials_file=credentials.json" \
+            -var "region=${{ secrets.GCP_REGION }}" \
+            -var "machine_type=${{ secrets.MACHINE_TYPE }}" \
+            -var "zone=${{ secrets.ZONE }}" \
+            -var "tags=${{ secrets.TAGS }}" \
+            -var "image_project=${{ secrets.IMAGE_PROJECT }}" \
+            -var "image_family=${{ secrets.IMAGE_FAMILY }}" \
+            -var "network=${{ secrets.NETWORK }}" \
+            -var "subnetwork=${{ secrets.SUBNETWORK }}"
 
       - name: Retrieve VM IP
         id: get_ip
