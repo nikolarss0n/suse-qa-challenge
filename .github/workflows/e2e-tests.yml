@@ -80,8 +80,14 @@ jobs:
 
       - name: Wait for Rancher
         run: |
-          # Get IP from terraform output
-          VM_IP=$(terraform -chdir=terraform output -raw instance_ip)
+          # Get IP and trim any whitespace
+          VM_IP=$(terraform -chdir=terraform output -raw instance_ip | tr -d '[:space:]')
+          
+          # Validate IP format
+          if ! [[ $VM_IP =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Error: Invalid IP address format: $VM_IP"
+            exit 1
+          fi
           
           echo "Attempting to connect to Rancher at https://$VM_IP"
           timeout=300
