@@ -4,7 +4,6 @@ echo "Testing IP retrieval methods..."
 
 # Method 1 - Direct terraform output
 echo "Method 1 - Direct terraform output:"
-cd terraform
 terraform output instance_ip
 
 # Method 2 - Raw output

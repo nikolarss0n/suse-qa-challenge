@@ -66,7 +66,7 @@ jobs:
         id: get_ip
         working-directory: terraform
         run: |
-          bash ../scripts/get_ip.sh > ip_output.txt
+          bash get_ip.sh > ip_output.txt
           IP=$(grep "Cleaned IP:" ip_output.txt | cut -d' ' -f3)
           echo "Found IP: $IP"
           echo "ip=$IP" >> "$GITHUB_OUTPUT"
