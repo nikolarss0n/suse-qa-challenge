@@ -77,20 +77,16 @@ jobs:
           gcloud auth activate-service-account --key-file <(echo '${{ secrets.GCP_SA_KEY }}')
           gcloud config set project ${{ secrets.GCP_PROJECT_ID }}
           gcloud compute instances delete test-vm --zone=us-central1-a --quiet
-        
+
       - name: Debug GCP Credentials
         run: |
-            echo '${{ secrets.GCP_SA_KEY }}' | jq 'with_entries(select(.key | test("^(type|project_id|client_email)$")))' || echo "Invalid JSON format"
+          echo '${{ secrets.GCP_SA_KEY }}' | jq 'with_entries(select(.key | test("^(type|project_id|client_email)$")))' || echo "Invalid JSON format"
 
       - name: Install jq
         run: sudo apt-get install -y jq
 
-      - name: Debug Terraform Outputs
-        working-directory: terraform
-        run: terraform output -json
-
-
-      - name: Terraform Apply
+      - name: Terraform Apply and Extract IP
+        id: apply
         working-directory: terraform
         env:
           GOOGLE_CREDENTIALS: ${{ secrets.GCP_SA_KEY }}
@@ -100,43 +96,18 @@ jobs:
             -var "region=us-central1" \
             -var "zone=us-central1-a" \
             -var "machine_type=e2-medium" \
-            -var 'tags=["rancher-server","http-server","https-server"]'
-
-      - name: Debug Raw Terraform Output
-        working-directory: terraform
-        run: |
-          echo "Raw instance_ip output:"
-          terraform output -raw instance_ip || echo "No instance_ip found"
-
-      - name: Test IP Sanitization
-        working-directory: terraform
-        run: |
-          ip=$(terraform output -raw instance_ip | tr -d '%')
-          echo "Sanitized IP: $ip"
+            -var 'tags=["rancher-server","http-server","https-server"]' | tee apply.log
+          ip=$(grep -oE 'instance_ip = "([0-9]{1,3}\.){3}[0-9]{1,3}"' apply.log | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}')
           if [[ -z "$ip" ]]; then
-            echo "Error: Sanitized IP is empty."
-            exit 1
-          fi
-
-       
-      - name: Retrieve VM IP
-        id: get_ip
-        working-directory: terraform
-        run: |
-          ip=$(terraform output -raw instance_ip | tr -d '%')
-          if [[ -z "$ip" ]]; then
-            echo "Error: instance_ip not retrieved."
+            echo "Error: instance_ip not found in apply output."
             exit 1
           fi
           echo "ip=$ip" >> $GITHUB_OUTPUT
 
-
-
-
       - name: Wait for Rancher API to be Ready
         run: |
-          echo "Waiting for Rancher API at ${{ steps.get_ip.outputs.ip }}..."
-          until curl -sk https://${{ steps.get_ip.outputs.ip }}/ping > /dev/null 2>&1; do
+          echo "Waiting for Rancher API at ${{ steps.apply.outputs.ip }}..."
+          until curl -sk https://${{ steps.apply.outputs.ip }}/ping > /dev/null 2>&1; do
             echo "Rancher API not ready yet. Retrying in 10 seconds..."
             sleep 10
           done
@@ -161,7 +132,6 @@ jobs:
         if: ${{ github.event.inputs.test_suite == 'api' || github.event.inputs.test_suite == 'all' }}
         working-directory: api-tests
         run: |
-          # Assuming config.yml is already created by the script on VM
           echo "Config.yml is already created by rancher-local.sh on the VM"
           go mod download
 
@@ -183,8 +153,8 @@ jobs:
           working-directory: ui-tests
           browser: chrome
         env:
-          CYPRESS_BASE_URL: ${{ steps.get_ip.outputs.ip }}
-          CYPRESS_RANCHER_URL: ${{ steps.get_ip.outputs.ip }}
+          CYPRESS_BASE_URL: ${{ steps.apply.outputs.ip }}
+          CYPRESS_RANCHER_URL: ${{ steps.apply.outputs.ip }}
           CYPRESS_VERIFY_SSL: false
           NODE_TLS_REJECT_UNAUTHORIZED: '0'
           CYPRESS_CHROME_WEB_SECURITY: false
@@ -208,7 +178,7 @@ jobs:
       - name: Cleanup Rancher
         if: always()
         run: |
-          ssh -o StrictHostKeyChecking=no ubuntu@${{ steps.get_ip.outputs.ip }} "./scripts/rancher-local.sh stop"
+          ssh -o StrictHostKeyChecking=no ubuntu@${{ steps.apply.outputs.ip }} "./scripts/rancher-local.sh stop"
         env:
           GITHUB_ENV: $GITHUB_ENV
 
