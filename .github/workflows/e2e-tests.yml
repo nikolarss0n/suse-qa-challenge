@@ -1,83 +1,100 @@
-name: Infrastructure and Tests
+name: Rancher Test Suite
 
 on:
   workflow_dispatch:
     inputs:
       test_suite:
-        description: 'Select test suite'
+        description: 'Select the test suite to run'
         required: true
         default: 'all'
         type: choice
-        options: [all, ui, api]
+        options:
+          - all
+          - ui
+          - api
   push:
-    branches: [main]
+    branches: [main, 'test/**', 'feature/**']
   pull_request:
     branches: [main]
 
 jobs:
   test:
     runs-on: ubuntu-latest
+
+    env:
+      ADMIN_PASSWORD: ${{ secrets.RANCHER_ADMIN_PASSWORD }}
+      RANCHER_URL: https://localhost:8443
+
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout Repository
+        uses: actions/checkout@v3
 
-      - uses: hashicorp/setup-terraform@v2
-        with:
-          terraform_version: '1.4.6'
-
-      - name: Terraform Init
-        working-directory: terraform
-        run: terraform init
-
-      - name: Terraform Apply
-        working-directory: terraform
-        env:
-          GOOGLE_CREDENTIALS: ${{ secrets.GCP_SA_KEY }}
+      - name: Install Dependencies
         run: |
-          echo '${{ secrets.GCP_SA_KEY }}' > credentials.json
-          terraform apply -auto-approve \
-            -var "project=${{ secrets.GCP_PROJECT_ID }}" \
-            -var "credentials_file=credentials.json" \
-            -var "zone=us-central1-a" \
-            -var "machine_type=e2-medium"
+          sudo apt-get update
+          sudo apt-get install -y jq
 
-      - name: Get VM IP
-        id: get_ip
-        working-directory: terraform
-        run: echo "ip=$(terraform output -raw instance_ip)" >> $GITHUB_OUTPUT
+      - name: Make Rancher Script Executable
+        run: chmod +x scripts/rancher-local.sh
 
-      - name: Setup Go
+      - name: Start Rancher and Generate API Tokens
+        run: ./scripts/rancher-local.sh start
+        env:
+          GITHUB_ENV: $GITHUB_ENV
+          ADMIN_PASSWORD: ${{ env.ADMIN_PASSWORD }}
+          RANCHER_URL: ${{ env.RANCHER_URL }}
+
+      # At this point, API_TOKEN, API_USERNAME, and CYPRESS_AUTH_TOKEN are set
+
+      - name: Setup Go Environment
         uses: actions/setup-go@v4
         with:
           go-version: '1.21'
           cache: true
           cache-dependency-path: api-tests/go.sum
 
-      - name: Setup Node.js
+      - name: Setup Node.js Environment
         uses: actions/setup-node@v3
         with:
           node-version: '18'
           cache: 'npm'
           cache-dependency-path: 'ui-tests/package-lock.json'
 
-      - name: API Tests
-        if: inputs.test_suite == 'api' || inputs.test_suite == 'all'
+      # Conditional Steps for API Tests
+      - name: Setup API Tests
+        if: ${{ github.event.inputs.test_suite == 'api' || github.event.inputs.test_suite == 'all' }}
         working-directory: api-tests
         run: |
+          # Assuming config.yml is already created by the script
+          echo "Config.yml already created by rancher-local.sh"
           go mod download
-          go test -v ./...
 
-      - name: UI Tests
-        if: inputs.test_suite == 'ui' || inputs.test_suite == 'all'
+      - name: Run API Tests
+        if: ${{ github.event.inputs.test_suite == 'api' || github.event.inputs.test_suite == 'all' }}
+        working-directory: api-tests
+        run: go test -v ./...
+
+      # Conditional Steps for UI Tests
+      - name: Install UI Dependencies
+        if: ${{ github.event.inputs.test_suite == 'ui' || github.event.inputs.test_suite == 'all' }}
+        working-directory: ui-tests
+        run: npm ci
+
+      - name: Run UI Tests
+        if: ${{ github.event.inputs.test_suite == 'ui' || github.event.inputs.test_suite == 'all' }}
         uses: cypress-io/github-action@v6
         with:
           working-directory: ui-tests
           browser: chrome
         env:
-          CYPRESS_BASE_URL: ${{ steps.get_ip.outputs.ip }}
+          CYPRESS_BASE_URL: ${{ env.RANCHER_URL }}
+          CYPRESS_RANCHER_URL: ${{ env.RANCHER_URL }}
           CYPRESS_VERIFY_SSL: false
           NODE_TLS_REJECT_UNAUTHORIZED: '0'
+          CYPRESS_CHROME_WEB_SECURITY: false
+          CYPRESS_AUTH_TOKEN: ${{ env.CYPRESS_AUTH_TOKEN }}
 
-      - name: Upload Test Results
+      - name: Upload Test Artifacts
         if: always()
         uses: actions/upload-artifact@v3
         with:
@@ -87,12 +104,8 @@ jobs:
             ui-tests/cypress/screenshots
             api-tests/test-reports
 
-      - name: Terraform Destroy
+      - name: Cleanup Rancher
         if: always()
-        working-directory: terraform
+        run: ./scripts/rancher-local.sh stop
         env:
-          GOOGLE_CREDENTIALS: ${{ secrets.GCP_SA_KEY }}
-        run: |
-          terraform destroy -auto-approve \
-            -var "project=${{ secrets.GCP_PROJECT_ID }}" \
-            -var "credentials_file=credentials.json"
+          GITHUB_ENV: $GITHUB_ENV

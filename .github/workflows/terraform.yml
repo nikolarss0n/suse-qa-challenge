@@ -1,0 +1,98 @@
+name: Infrastructure and Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_suite:
+        description: 'Select test suite'
+        required: true
+        default: 'all'
+        type: choice
+        options: [all, ui, api]
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: '1.4.6'
+
+      - name: Terraform Init
+        working-directory: terraform
+        run: terraform init
+
+      - name: Terraform Apply
+        working-directory: terraform
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GCP_SA_KEY }}
+        run: |
+          echo '${{ secrets.GCP_SA_KEY }}' > credentials.json
+          terraform apply -auto-approve \
+            -var "project=${{ secrets.GCP_PROJECT_ID }}" \
+            -var "credentials_file=credentials.json" \
+            -var "zone=us-central1-a" \
+            -var "machine_type=e2-medium"
+
+      - name: Get VM IP
+        id: get_ip
+        working-directory: terraform
+        run: echo "ip=$(terraform output -raw instance_ip)" >> $GITHUB_OUTPUT
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+          cache: true
+          cache-dependency-path: api-tests/go.sum
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: 'ui-tests/package-lock.json'
+
+      - name: API Tests
+        if: inputs.test_suite == 'api' || inputs.test_suite == 'all'
+        working-directory: api-tests
+        run: |
+          go mod download
+          go test -v ./...
+
+      - name: UI Tests
+        if: inputs.test_suite == 'ui' || inputs.test_suite == 'all'
+        uses: cypress-io/github-action@v6
+        with:
+          working-directory: ui-tests
+          browser: chrome
+        env:
+          CYPRESS_BASE_URL: ${{ steps.get_ip.outputs.ip }}
+          CYPRESS_VERIFY_SSL: false
+          NODE_TLS_REJECT_UNAUTHORIZED: '0'
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-artifacts
+          path: |
+            ui-tests/cypress/videos
+            ui-tests/cypress/screenshots
+            api-tests/test-reports
+
+      - name: Terraform Destroy
+        if: always()
+        working-directory: terraform
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GCP_SA_KEY }}
+        run: |
+          terraform destroy -auto-approve \
+            -var "project=${{ secrets.GCP_PROJECT_ID }}" \
+            -var "credentials_file=credentials.json"
