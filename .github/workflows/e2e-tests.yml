@@ -80,14 +80,14 @@ jobs:
           terraform apply -auto-approve \
             -var "project=${{ secrets.GCP_PROJECT_ID }}" \
             -var "credentials_file=credentials.json" \
-            -var "region=${{ secrets.GCP_REGION }}" \
-            -var "machine_type=${{ secrets.MACHINE_TYPE }}" \
-            -var "zone=${{ secrets.ZONE }}" \
-            -var "tags=${{ secrets.TAGS }}" \
-            -var "image_project=${{ secrets.IMAGE_PROJECT }}" \
-            -var "image_family=${{ secrets.IMAGE_FAMILY }}" \
-            -var "network=${{ secrets.NETWORK }}" \
-            -var "subnetwork=${{ secrets.SUBNETWORK }}"
+            -var "region=us-central1" \
+            -var "machine_type=e2-medium" \
+            -var "zone=us-central1-a" \
+            -var 'tags=["rancher-server", "http-server", "https-server"]' \
+            -var "image_project=debian-cloud" \
+            -var "image_family=debian-11" \
+            -var "network=default" \
+            -var "subnetwork=default"
 
       - name: Retrieve VM IP
         id: get_ip
