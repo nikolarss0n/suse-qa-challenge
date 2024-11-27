@@ -20,178 +20,139 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-
     env:
       ADMIN_PASSWORD: ${{ secrets.RANCHER_ADMIN_PASSWORD }}
-      RANCHER_URL: https://localhost:8443
+      VM_IP: ""
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Remove Existing Docker Packages
-        run: |
-          sudo apt-get remove -y docker docker-engine docker.io containerd runc || true
-
-      - name: Install Prerequisites for Docker
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            ca-certificates \
-            curl \
-            gnupg \
-            lsb-release
-
-      - name: Add Docker’s Official GPG Key
-        run: |
-          sudo mkdir -p /etc/apt/keyrings
-          curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-
-      - name: Set Up Docker Repository
-        run: |
-          echo \
-            "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-            $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-      - name: Install Docker Engine
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-
-      - name: Verify Docker Installation
-        run: |
-          sudo docker run hello-world
-
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: '1.4.6' # Specify your Terraform version
+          terraform_version: '1.4.6'
 
-      - name: Terraform Init
+      - name: Configure GCP Credentials
+        run: |
+          echo '${{ secrets.GCP_SA_KEY }}' > credentials.json
+          export GOOGLE_APPLICATION_CREDENTIALS="credentials.json"
+
+      - name: Initialize Terraform
         working-directory: terraform
         run: terraform init
 
-      - name: Delete existing VM
-        continue-on-error: true
-        run: |
-          gcloud auth activate-service-account --key-file <(echo '${{ secrets.GCP_SA_KEY }}')
-          gcloud config set project ${{ secrets.GCP_PROJECT_ID }}
-          gcloud compute instances delete test-vm --zone=us-central1-a --quiet
-
-      - name: Debug GCP Credentials
-        run: |
-          echo '${{ secrets.GCP_SA_KEY }}' | jq 'with_entries(select(.key | test("^(type|project_id|client_email)$")))' || echo "Invalid JSON format"
-
-      - name: Install jq
-        run: sudo apt-get install -y jq
-
-      - name: Terraform Apply and Extract IP
-        id: apply
+      - name: Provision VM
+        id: vm
         working-directory: terraform
-        env:
-          GOOGLE_CREDENTIALS: ${{ secrets.GCP_SA_KEY }}
         run: |
-          # Apply Terraform configuration
           terraform apply -auto-approve \
             -var "project=${{ secrets.GCP_PROJECT_ID }}" \
             -var "region=us-central1" \
             -var "zone=us-central1-a" \
             -var "machine_type=e2-medium" \
             -var 'tags=["rancher-server","http-server","https-server"]'
-          
-          # Extract IP address and remove any debug information
-          IP_ADDRESS=$(terraform output -json instance_ip | jq -r '.')
-          
-          # Remove any debug information that might be appended
-          CLEAN_IP=$(echo "$IP_ADDRESS" | cut -d':' -f1)
-          
-          # Set the output
-          echo "ip=$CLEAN_IP" >> $GITHUB_OUTPUT
+          echo "vm_ip=$(terraform output -raw instance_ip)" >> $GITHUB_ENV
 
-      - name: Wait for Rancher API to be Ready
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.5.4
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Wait for VM
         run: |
-          echo "Waiting for Rancher API at ${{ steps.apply.outputs.ip }}..."
-          until curl -sk https://${{ steps.apply.outputs.ip }}/ping > /dev/null 2>&1; do
-            echo "Rancher API not ready yet. Retrying in 10 seconds..."
+          until ssh -o StrictHostKeyChecking=no ubuntu@${{ env.vm_ip }} "echo 'VM is ready'"; do
+            echo "Waiting for VM to be ready..."
             sleep 10
           done
-          echo "Rancher API is available."
 
-      - name: Setup Go Environment
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.21'
-          cache: true
-          cache-dependency-path: api-tests/go.sum
-
-      - name: Setup Node.js Environment
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-          cache: 'npm'
-          cache-dependency-path: 'ui-tests/package-lock.json'
-
-      # Conditional Steps for API Tests
-      - name: Setup API Tests
-        if: ${{ github.event.inputs.test_suite == 'api' || github.event.inputs.test_suite == 'all' }}
-        working-directory: api-tests
+      - name: Setup VM Environment
         run: |
-          echo "Config.yml is already created by rancher-local.sh on the VM"
-          go mod download
+          ssh -o StrictHostKeyChecking=no ubuntu@${{ env.vm_ip }} << 'EOF'
+            # Install Docker
+            curl -fsSL https://get.docker.com -o get-docker.sh
+            sudo sh get-docker.sh
+            sudo usermod -aG docker ubuntu
 
-      - name: Run API Tests
-        if: ${{ github.event.inputs.test_suite == 'api' || github.event.inputs.test_suite == 'all' }}
-        working-directory: api-tests
-        run: go test -v ./...
+            # Install necessary tools
+            sudo apt-get update
+            sudo apt-get install -y curl git make
+          EOF
 
-      # Conditional Steps for UI Tests
-      - name: Install UI Dependencies
-        if: ${{ github.event.inputs.test_suite == 'ui' || github.event.inputs.test_suite == 'all' }}
-        working-directory: ui-tests
-        run: npm ci
+      - name: Install Rancher
+        run: |
+          ssh -o StrictHostKeyChecking=no ubuntu@${{ env.vm_ip }} << 'EOF'
+            docker run -d --restart=unless-stopped \
+              -p 443:443 \
+              --privileged \
+              rancher/rancher:latest
+          EOF
 
-      - name: Run UI Tests
-        if: ${{ github.event.inputs.test_suite == 'ui' || github.event.inputs.test_suite == 'all' }}
-        uses: cypress-io/github-action@v6
-        with:
-          working-directory: ui-tests
-          browser: chrome
-        env:
-          CYPRESS_BASE_URL: ${{ steps.apply.outputs.ip }}
-          CYPRESS_RANCHER_URL: ${{ steps.apply.outputs.ip }}
-          CYPRESS_VERIFY_SSL: false
-          NODE_TLS_REJECT_UNAUTHORIZED: '0'
-          CYPRESS_CHROME_WEB_SECURITY: false
-          CYPRESS_AUTH_TOKEN: ${{ secrets.CYPRESS_AUTH_TOKEN }}
+      - name: Wait for Rancher
+        run: |
+          until curl -sk https://${{ env.vm_ip }}/ping > /dev/null 2>&1; do
+            echo "Waiting for Rancher..."
+            sleep 10
+          done
+
+      - name: Copy Test Files
+        run: |
+          scp -r -o StrictHostKeyChecking=no \
+            api-tests ui-tests scripts \
+            ubuntu@${{ env.vm_ip }}:/home/ubuntu/
+
+      - name: Setup Test Environment
+        run: |
+          ssh -o StrictHostKeyChecking=no ubuntu@${{ env.vm_ip }} << 'EOF'
+            # Install Go
+            curl -LO https://go.dev/dl/go1.21.0.linux-amd64.tar.gz
+            sudo tar -C /usr/local -xzf go1.21.0.linux-amd64.tar.gz
+            export PATH=$PATH:/usr/local/go/bin
+
+            # Install Node.js
+            curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+            sudo apt-get install -y nodejs
+
+            # Setup test dependencies
+            cd /home/ubuntu/api-tests && go mod download
+            cd /home/ubuntu/ui-tests && npm install
+          EOF
+
+      - name: Run Tests
+        run: |
+          ssh -o StrictHostKeyChecking=no ubuntu@${{ env.vm_ip }} << 'EOF'
+            export PATH=$PATH:/usr/local/go/bin
+            
+            if [[ "${{ github.event.inputs.test_suite }}" == "api" || "${{ github.event.inputs.test_suite }}" == "all" ]]; then
+              cd /home/ubuntu/api-tests && go test -v ./...
+            fi
+
+            if [[ "${{ github.event.inputs.test_suite }}" == "ui" || "${{ github.event.inputs.test_suite }}" == "all" ]]; then
+              cd /home/ubuntu/ui-tests && npm test
+            fi
+          EOF
+
+      - name: Retrieve Test Results
+        run: |
+          mkdir -p test-results
+          scp -r -o StrictHostKeyChecking=no \
+            ubuntu@${{ env.vm_ip }}:/home/ubuntu/api-tests/test-results/* \
+            ubuntu@${{ env.vm_ip }}:/home/ubuntu/ui-tests/cypress/videos/* \
+            ubuntu@${{ env.vm_ip }}:/home/ubuntu/ui-tests/cypress/screenshots/* \
+            test-results/
 
       - name: Upload Test Artifacts
         if: always()
         uses: actions/upload-artifact@v3
         with:
-          name: test-artifacts
-          path: |
-            ui-tests/cypress/videos
-            ui-tests/cypress/screenshots
-            api-tests/test-reports
+          name: test-results
+          path: test-results
 
-      - name: Set up SSH key
-        uses: webfactory/ssh-agent@v0.5.4
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-
-      - name: Cleanup Rancher
-        if: always()
-        run: |
-          ssh -o StrictHostKeyChecking=no ubuntu@${{ steps.apply.outputs.ip }} "./scripts/rancher-local.sh stop"
-        env:
-          GITHUB_ENV: $GITHUB_ENV
-
-      - name: Terraform Destroy
+      - name: Cleanup
         if: always()
         working-directory: terraform
-        env:
-          GOOGLE_CREDENTIALS: ${{ secrets.GCP_SA_KEY }}
         run: |
           terraform destroy -auto-approve \
             -var "project=${{ secrets.GCP_PROJECT_ID }}" \
-            -var "credentials_file=credentials.json"
+            -var "region=us-central1" \
+            -var "zone=us-central1-a"
