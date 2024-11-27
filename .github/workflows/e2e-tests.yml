@@ -29,16 +29,38 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Install Dependencies
+      - name: Remove Existing Docker Packages
+        run: |
+          sudo apt-get remove -y docker docker-engine docker.io containerd runc || true
+
+      - name: Install Prerequisites for Docker
         run: |
           sudo apt-get update
-          sudo apt-get remove -y containerd
-          sudo apt-get install -y jq docker.io git
+          sudo apt-get install -y \
+            ca-certificates \
+            curl \
+            gnupg \
+            lsb-release
 
-      - name: Clean Up APT
+      - name: Add Docker’s Official GPG Key
         run: |
-          sudo apt-get autoremove -y
-          sudo apt-get autoclean
+          sudo mkdir -p /etc/apt/keyrings
+          curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+      - name: Set Up Docker Repository
+        run: |
+          echo \
+            "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+            $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+      - name: Install Docker Engine
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+      - name: Verify Docker Installation
+        run: |
+          sudo docker run hello-world
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
