@@ -18,11 +18,10 @@ fi
 
 echo "Found VM IP: $VM_IP"
 
-# Additional debug logging for GitHub Actions
+# Write to GITHUB_OUTPUT if running in GitHub Actions
 if [[ -n "$GITHUB_OUTPUT" ]]; then
-    echo "::debug::Raw output from Terraform: $RAW_OUTPUT"
-    echo "::debug::Filtered IP: $VM_IP"
-    echo "ip=$VM_IP" >> "$GITHUB_OUTPUT"
+    # Ensure the format is strictly 'key=value' with no extra whitespace
+    echo "ip=$VM_IP" | sed 's/[[:space:]]//g' >> "$GITHUB_OUTPUT"
 else
     echo "GITHUB_OUTPUT not set. Running locally."
     echo "Raw Terraform output: $RAW_OUTPUT"
