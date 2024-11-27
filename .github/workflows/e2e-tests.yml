@@ -101,14 +101,9 @@ jobs:
         id: get_ip
         working-directory: terraform
         run: |
-          sleep 10  # Wait for IP to be available
-          ip=$(terraform output -raw instance_ip)
-          if [[ $ip =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "ip=$ip" >> $GITHUB_OUTPUT
-          else
-            echo "Error: Invalid IP format: $ip"
-            exit 1
-          fi
+          sleep 10
+          ip=$(terraform output -raw instance_ip | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+')
+          echo "ip=$ip" >> $GITHUB_OUTPUT
 
       - name: Wait for Rancher API to be Ready
         run: |
