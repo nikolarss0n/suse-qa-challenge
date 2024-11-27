@@ -77,7 +77,31 @@ jobs:
           gcloud auth activate-service-account --key-file="$HOME/gcloud-key.json"
           gcloud config set project ${{ secrets.GCP_PROJECT_ID }}
 
-    
+      # Enable Necessary APIs
+      - name: Enable Required GCP APIs
+        run: |
+          gcloud services enable compute.googleapis.com
+          gcloud services enable storage.googleapis.com
+          gcloud services enable iam.googleapis.com
+          gcloud services enable serviceusage.googleapis.com
+          # Add any other necessary APIs here
+
+      # Wait for APIs to be enabled
+      - name: Wait for APIs to be Enabled
+        run: |
+          for i in {1..10}; do
+            gcloud services list --enabled --filter="NAME:compute.googleapis.com" && break
+            echo "Compute Engine API not enabled yet. Retrying in 10 seconds..."
+            sleep 10
+          done
+          for i in {1..10}; do
+            gcloud services list --enabled --filter="NAME:storage.googleapis.com" && break
+            echo "Storage API not enabled yet. Retrying in 10 seconds..."
+            sleep 10
+          done
+          # Repeat for other APIs if necessary
+
+      # Verify Compute Engine API and IAM
       - name: Verify Compute Engine API and IAM
         run: |
           gcloud services list --enabled --filter="NAME:compute.googleapis.com"
@@ -86,22 +110,19 @@ jobs:
             --filter="bindings.members:terraform-deployer@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
             --format="table(bindings.role)"
 
-
+      # Terraform Init
       - name: Terraform Init
         working-directory: terraform
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: $HOME/gcloud-key.json
         run: terraform init
-
-      - name: Enable Compute Engine API
-        run: |
-          gcloud services enable compute.googleapis.com
-
-      - name: Wait for API Propagation
-        run: sleep 300
 
       # Apply Terraform Configuration
       - name: Terraform Apply
+        working-directory: terraform
         env:
-          GOOGLE_CREDENTIALS: ${{ secrets.GCP_SA_KEY }}
+          GOOGLE_APPLICATION_CREDENTIALS: $HOME/gcloud-key.json
+          GOOGLE_CLOUD_PROJECT: ${{ secrets.GCP_PROJECT_ID }}
         run: terraform apply -auto-approve \
           -var "project=${{ secrets.GCP_PROJECT_ID }}" \
           -var "region=us-central1" \
@@ -206,7 +227,8 @@ jobs:
         if: always()
         working-directory: terraform
         env:
-          GOOGLE_CREDENTIALS: ${{ secrets.GCP_SA_KEY }}
+          GOOGLE_APPLICATION_CREDENTIALS: $HOME/gcloud-key.json
+          GOOGLE_CLOUD_PROJECT: ${{ secrets.GCP_PROJECT_ID }}
         run: |
           terraform destroy -auto-approve \
             -var "project=${{ secrets.GCP_PROJECT_ID }}" \
