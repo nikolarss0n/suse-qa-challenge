@@ -66,8 +66,8 @@ jobs:
         id: get_ip
         working-directory: terraform
         run: |
-          VM_IP=$(bash get_ip.sh)
-          echo "VM_IP=$VM_IP" >> $GITHUB_ENV
+          echo "VM_IP=$(bash get_ip.sh)" >> $GITHUB_ENV
+
 
 
       - name: Setup Go
@@ -101,6 +101,7 @@ jobs:
           fi
         env:
           VM_IP: ${{ env.VM_IP }}
+
 
 
 
