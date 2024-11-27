@@ -101,9 +101,8 @@ jobs:
         id: get_ip
         working-directory: terraform
         run: |
-          ip=$(terraform output -raw instance_ip)
-          echo "IP is: $ip"  # Debug print
-          echo "ip=${ip%::*}" >> $GITHUB_OUTPUT
+          ip=$(terraform output -raw instance_ip | tr -d '%')
+          echo "ip=$ip" >> $GITHUB_OUTPUT
 
       - name: Wait for Rancher API to be Ready
         run: |
