@@ -80,6 +80,10 @@ jobs:
         working-directory: terraform
         run: terraform init
 
+      - name: Enable Compute Engine API
+        run: |
+          gcloud services enable compute.googleapis.com
+
       # Apply Terraform Configuration
       - name: Terraform Apply
         working-directory: terraform
