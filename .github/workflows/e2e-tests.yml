@@ -40,6 +40,17 @@ jobs:
         working-directory: terraform
         run: terraform init
 
+      - name: Attempt VM Cleanup
+        working-directory: terraform
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GCP_SA_KEY }}
+        run: |
+          terraform destroy -auto-approve \
+            -var "project=${{ secrets.GCP_PROJECT_ID }}" \
+            -var "zone=us-central1-a" \
+            -var "machine_type=e2-medium" \
+            -var "ssh_public_key=${{ env.SSH_PUBLIC_KEY }}" || true
+
       - name: Terraform Apply
         working-directory: terraform
         env:
@@ -54,9 +65,7 @@ jobs:
       - name: Get VM IP
         id: get_ip
         working-directory: terraform
-        run: |
-          echo "ip=$(terraform output -raw instance_ip)" >> $GITHUB_OUTPUT
-          echo "Waiting for Rancher to be ready at ${{ steps.get_ip.outputs.ip }}"
+        run: echo "ip=$(terraform output -raw instance_ip)" >> $GITHUB_OUTPUT
 
       - name: Setup Go
         if: inputs.test_suite == 'api' || inputs.test_suite == 'all'

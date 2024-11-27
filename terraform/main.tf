@@ -1,5 +1,5 @@
 resource "google_compute_instance" "default" {
-  name         = "test-vm"
+  name         = "test-vm-${formatdate("YYYYMMDD-HHmmss", timestamp())}"  # Added timestamp to make name unique
   machine_type = var.machine_type
   zone         = var.zone
   tags         = var.tags
