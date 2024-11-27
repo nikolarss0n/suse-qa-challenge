@@ -76,10 +76,12 @@ jobs:
         env:
           GOOGLE_CREDENTIALS: ${{ secrets.GCP_SA_KEY }}
         run: |
-          echo "${{ secrets.GCP_SA_KEY }}" > terraform/credentials.json
+          echo "${{ secrets.GCP_SA_KEY }}" > credentials.json
           terraform apply -auto-approve \
             -var "project=${{ secrets.GCP_PROJECT_ID }}" \
             -var "credentials_file=credentials.json"
+
+
 
       - name: Retrieve VM IP
         id: get_ip
