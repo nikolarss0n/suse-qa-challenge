@@ -72,9 +72,19 @@ jobs:
 
       # Authenticate to Google Cloud
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+        run: |
+          echo "${{ secrets.GCP_SA_KEY }}" > "${HOME}/gcloud-key.json"
+          gcloud auth activate-service-account --key-file="${HOME}/gcloud-key.json"
+          gcloud config set project ${{ secrets.GCP_PROJECT_ID }}
+    
+      - name: Verify Compute Engine API and IAM
+        run: |
+          gcloud services list --enabled --filter="NAME:compute.googleapis.com"
+          gcloud projects get-iam-policy ${{ secrets.GCP_PROJECT_ID }} \
+            --flatten="bindings[].members" \
+            --filter="bindings.members:terraform-deployer@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
+            --format="table(bindings.role)"
+
 
       - name: Terraform Init
         working-directory: terraform
@@ -84,24 +94,23 @@ jobs:
         run: |
           gcloud services enable compute.googleapis.com
 
+      - name: Wait for API Propagation
+        run: sleep 300
+
       # Apply Terraform Configuration
-      - name: Terraform Apply with Debug
-        working-directory: terraform
+      - name: Terraform Apply
         env:
           GOOGLE_CREDENTIALS: ${{ secrets.GCP_SA_KEY }}
-          TF_LOG: DEBUG
-        run: |
-          terraform apply -auto-approve \
-            -var "project=${{ secrets.GCP_PROJECT_ID }}" \
-            -var "region=us-central1" \
-            -var "zone=us-central1-a" \
-            -var 'tags=["rancher-server","http-server","https-server"]' \
-            -var "machine_type=e2-medium" \
-            -var "image_project=debian-cloud" \
-            -var "image_family=debian-11" \
-            -var "network=default" \
-            -var "subnetwork=default"
-
+        run: terraform apply -auto-approve \
+          -var "project=${{ secrets.GCP_PROJECT_ID }}" \
+          -var "region=us-central1" \
+          -var "zone=us-central1-a" \
+          -var 'tags=["rancher-server","http-server","https-server"]' \
+          -var "machine_type=e2-medium" \
+          -var "image_project=debian-cloud" \
+          -var "image_family=debian-11" \
+          -var "network=default" \
+          -var "subnetwork=default"
 
       # Retrieve VM IP
       - name: Retrieve VM IP
