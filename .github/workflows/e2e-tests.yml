@@ -106,6 +106,7 @@ jobs:
             -var "network=default" \
             -var "subnetwork=default"
 
+
       - name: Retrieve VM IP
         id: get_ip
         working-directory: terraform
