@@ -62,6 +62,17 @@ jobs:
             -var "machine_type=e2-medium" \
             -var "ssh_public_key=${{ env.SSH_PUBLIC_KEY }}"
 
+
+
+      - name: Make Rancher Script Executable
+        run: chmod +x ./scripts/rancher-local.sh
+
+      - name: Start Rancher and Generate API Tokens
+        run: ./scripts/rancher-local.sh start
+        env:
+          GITHUB_ENV: $GITHUB_ENV
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+
       - name: Setup Go
         if: inputs.test_suite == 'api' || inputs.test_suite == 'all'
         uses: actions/setup-go@v4
@@ -77,14 +88,6 @@ jobs:
           node-version: '18'
           cache: 'npm'
           cache-dependency-path: 'ui-tests/package-lock.json'
-
-      - name: Start Rancher and Generate API Tokens
-        run: ./scripts/rancher-local.sh start
-        env:
-          GITHUB_ENV: $GITHUB_ENV
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
-
-
 
       - name: API Tests
         if: inputs.test_suite == 'api' || inputs.test_suite == 'all'
