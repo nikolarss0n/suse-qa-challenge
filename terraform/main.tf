@@ -30,7 +30,7 @@ resource "google_compute_instance" "default" {
   }
 
   service_account {
-    email  = "terraform-deployer@${var.project}.iam.gserviceaccount.com"
+    email  = "terraform-admin-sa@${var.project}.iam.gserviceaccount.com"
     scopes = ["https://www.googleapis.com/auth/cloud-platform"]
   }
 }

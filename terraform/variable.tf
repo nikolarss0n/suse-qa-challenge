@@ -50,8 +50,3 @@ variable "tags" {
   type        = list(string)
   default     = []
 }
-
-variable "credentials_file" {
-  description = "Path to the GCP service account credentials file"
-  type        = string
-}
