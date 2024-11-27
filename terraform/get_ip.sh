@@ -1,7 +1,5 @@
 #!/bin/bash
 
-echo "Retrieving VM IP from Terraform..." >&2
-
 # Fetch the raw output from Terraform
 RAW_OUTPUT=$(terraform output -raw instance_ip 2>/dev/null)
 
@@ -16,5 +14,5 @@ if [[ -z "$VM_IP" ]]; then
     exit 1
 fi
 
-# Output the IP only
+# Output only the IP address
 echo "$VM_IP"
