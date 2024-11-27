@@ -101,9 +101,24 @@ start_rancher() {
         -e CATTLE_BOOTSTRAP_PASSWORD=adminpassword \
         rancher/rancher:latest
 
-    echo "Waiting for Rancher to become available..."
-    timeout=600  # Adjust to a higher timeout if needed (e.g., 10 minutes)
+    echo "Waiting for Rancher container to start properly..."
+    container_timeout=120  # Timeout for checking container health (2 minutes)
+    while [ "$(docker inspect -f '{{.State.Health.Status}}' rancher_test 2>/dev/null)" != "healthy" ] && [ $container_timeout -gt 0 ]; do
+        echo "Waiting for Rancher container to become healthy... ($container_timeout seconds remaining)"
+        sleep 5
+        container_timeout=$((container_timeout - 5))
+    done
 
+    if [ $container_timeout -le 0 ]; then
+        echo -e "${RED}Timeout waiting for Rancher container to be healthy.${NC}"
+        docker logs rancher_test
+        exit 1
+    fi
+
+    echo -e "${GREEN}Rancher container is healthy.${NC}"
+
+    echo "Waiting for Rancher to become available at https://$VM_IP:8443..."
+    timeout=600  # Adjust to a higher timeout if needed (e.g., 10 minutes)
     until curl -k -s -o /dev/null -w "%{http_code}" "https://$VM_IP:8443/ping" | grep -q "200" || [ $timeout -le 0 ]; do
         echo "Rancher is not ready yet... ($timeout seconds remaining)"
         sleep 5
@@ -112,6 +127,7 @@ start_rancher() {
 
     if [ $timeout -le 0 ]; then
         echo -e "${RED}Timeout waiting for Rancher to be ready.${NC}"
+        docker logs rancher_test
         exit 1
     fi
 
@@ -119,6 +135,7 @@ start_rancher() {
     
     generate_token
 }
+
 
 
 stop_rancher() {
