@@ -75,9 +75,18 @@ jobs:
         run: |
           printf '%s' "${{ secrets.GCP_SA_KEY }}" > "$HOME/gcloud-key.json"
           gcloud auth activate-service-account --key-file="$HOME/gcloud-key.json"
-          gcloud config set project ${{ secrets.GCP_PROJECT_ID }}
+          gcloud config set project "${{ secrets.GCP_PROJECT_ID }}"
         shell: bash
 
+      # Install jq for JSON validation
+      - name: Install jq
+        run: sudo apt-get install -y jq
+
+      # Validate the JSON Key
+      - name: Validate GCP Credentials JSON
+        run: |
+          jq . "$HOME/gcloud-key.json"
+        shell: bash
 
       # Enable Necessary APIs
       - name: Enable Required GCP APIs
@@ -91,23 +100,19 @@ jobs:
       # Wait for APIs to be enabled
       - name: Wait for APIs to be Enabled
         run: |
-          for i in {1..10}; do
-            gcloud services list --enabled --filter="NAME:compute.googleapis.com" && break
-            echo "Compute Engine API not enabled yet. Retrying in 10 seconds..."
-            sleep 10
+          for api in compute.googleapis.com storage.googleapis.com iam.googleapis.com serviceusage.googleapis.com; do
+            for i in {1..10}; do
+              gcloud services list --enabled --filter="NAME:${api}" && break
+              echo "${api} not enabled yet. Retrying in 10 seconds..."
+              sleep 10
+            done
           done
-          for i in {1..10}; do
-            gcloud services list --enabled --filter="NAME:storage.googleapis.com" && break
-            echo "Storage API not enabled yet. Retrying in 10 seconds..."
-            sleep 10
-          done
-          # Repeat for other APIs if necessary
 
       # Verify Compute Engine API and IAM
       - name: Verify Compute Engine API and IAM
         run: |
           gcloud services list --enabled --filter="NAME:compute.googleapis.com"
-          gcloud projects get-iam-policy ${{ secrets.GCP_PROJECT_ID }} \
+          gcloud projects get-iam-policy "${{ secrets.GCP_PROJECT_ID }}" \
             --flatten="bindings[].members" \
             --filter="bindings.members:terraform-deployer@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
             --format="table(bindings.role)"
@@ -116,15 +121,15 @@ jobs:
       - name: Terraform Init
         working-directory: terraform
         env:
-          GOOGLE_APPLICATION_CREDENTIALS: $HOME/gcloud-key.json
+          GOOGLE_APPLICATION_CREDENTIALS: "$HOME/gcloud-key.json"
         run: terraform init
 
       # Apply Terraform Configuration
       - name: Terraform Apply
         working-directory: terraform
         env:
-          GOOGLE_APPLICATION_CREDENTIALS: $HOME/gcloud-key.json
-          GOOGLE_CLOUD_PROJECT: ${{ secrets.GCP_PROJECT_ID }}
+          GOOGLE_APPLICATION_CREDENTIALS: "$HOME/gcloud-key.json"
+          GOOGLE_CLOUD_PROJECT: "${{ secrets.GCP_PROJECT_ID }}"
         run: terraform apply -auto-approve \
           -var "project=${{ secrets.GCP_PROJECT_ID }}" \
           -var "region=us-central1" \
@@ -194,12 +199,12 @@ jobs:
           working-directory: ui-tests
           browser: chrome
         env:
-          CYPRESS_BASE_URL: ${{ steps.get_ip.outputs.ip }}
-          CYPRESS_RANCHER_URL: ${{ steps.get_ip.outputs.ip }}
+          CYPRESS_BASE_URL: "${{ steps.get_ip.outputs.ip }}"
+          CYPRESS_RANCHER_URL: "${{ steps.get_ip.outputs.ip }}"
           CYPRESS_VERIFY_SSL: false
           NODE_TLS_REJECT_UNAUTHORIZED: '0'
           CYPRESS_CHROME_WEB_SECURITY: false
-          CYPRESS_AUTH_TOKEN: ${{ secrets.CYPRESS_AUTH_TOKEN }}
+          CYPRESS_AUTH_TOKEN: "${{ secrets.CYPRESS_AUTH_TOKEN }}"
 
       # Upload Test Artifacts
       - name: Upload Test Artifacts
@@ -216,7 +221,7 @@ jobs:
       - name: Set up SSH Key
         uses: webfactory/ssh-agent@v0.5.4
         with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          ssh-private-key: "${{ secrets.SSH_PRIVATE_KEY }}"
 
       # Cleanup Rancher
       - name: Cleanup Rancher
@@ -229,8 +234,8 @@ jobs:
         if: always()
         working-directory: terraform
         env:
-          GOOGLE_APPLICATION_CREDENTIALS: $HOME/gcloud-key.json
-          GOOGLE_CLOUD_PROJECT: ${{ secrets.GCP_PROJECT_ID }}
+          GOOGLE_APPLICATION_CREDENTIALS: "$HOME/gcloud-key.json"
+          GOOGLE_CLOUD_PROJECT: "${{ secrets.GCP_PROJECT_ID }}"
         run: |
           terraform destroy -auto-approve \
             -var "project=${{ secrets.GCP_PROJECT_ID }}" \
