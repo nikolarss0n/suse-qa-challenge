@@ -32,19 +32,40 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y jq
+          sudo apt-get install -y jq docker.io git
 
-      - name: Make Rancher Script Executable
-        run: chmod +x scripts/rancher-local.sh
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: '1.4.6' # Specify your Terraform version
 
-      - name: Start Rancher and Generate API Tokens
-        run: ./scripts/rancher-local.sh start
+      - name: Terraform Init
+        working-directory: terraform
+        run: terraform init
+
+      - name: Terraform Apply
+        working-directory: terraform
         env:
-          GITHUB_ENV: $GITHUB_ENV
-          ADMIN_PASSWORD: ${{ env.ADMIN_PASSWORD }}
-          RANCHER_URL: ${{ env.RANCHER_URL }}
+          GOOGLE_CREDENTIALS: ${{ secrets.GCP_SA_KEY }}
+        run: |
+          echo "${{ secrets.GCP_SA_KEY }}" > terraform/credentials.json
+          terraform apply -auto-approve \
+            -var "project=${{ secrets.GCP_PROJECT_ID }}" \
+            -var "credentials_file=credentials.json"
 
-      # At this point, API_TOKEN, API_USERNAME, and CYPRESS_AUTH_TOKEN are set
+      - name: Retrieve VM IP
+        id: get_ip
+        working-directory: terraform
+        run: echo "::set-output name=ip::$(terraform output -raw instance_ip)"
+
+      - name: Wait for Rancher API to be Ready
+        run: |
+          echo "Waiting for Rancher API at ${{ steps.get_ip.outputs.ip }}..."
+          until curl -sk https://${{ steps.get_ip.outputs.ip }}/ping > /dev/null 2>&1; do
+            echo "Rancher API not ready yet. Retrying in 10 seconds..."
+            sleep 10
+          done
+          echo "Rancher API is available."
 
       - name: Setup Go Environment
         uses: actions/setup-go@v4
@@ -65,8 +86,8 @@ jobs:
         if: ${{ github.event.inputs.test_suite == 'api' || github.event.inputs.test_suite == 'all' }}
         working-directory: api-tests
         run: |
-          # Assuming config.yml is already created by the script
-          echo "Config.yml already created by rancher-local.sh"
+          # Assuming config.yml is already created by the script on VM
+          echo "Config.yml is already created by rancher-local.sh on the VM"
           go mod download
 
       - name: Run API Tests
@@ -87,12 +108,12 @@ jobs:
           working-directory: ui-tests
           browser: chrome
         env:
-          CYPRESS_BASE_URL: ${{ env.RANCHER_URL }}
-          CYPRESS_RANCHER_URL: ${{ env.RANCHER_URL }}
+          CYPRESS_BASE_URL: ${{ steps.get_ip.outputs.ip }}
+          CYPRESS_RANCHER_URL: ${{ steps.get_ip.outputs.ip }}
           CYPRESS_VERIFY_SSL: false
           NODE_TLS_REJECT_UNAUTHORIZED: '0'
           CYPRESS_CHROME_WEB_SECURITY: false
-          CYPRESS_AUTH_TOKEN: ${{ env.CYPRESS_AUTH_TOKEN }}
+          CYPRESS_AUTH_TOKEN: ${{ secrets.CYPRESS_AUTH_TOKEN }}
 
       - name: Upload Test Artifacts
         if: always()
@@ -104,8 +125,24 @@ jobs:
             ui-tests/cypress/screenshots
             api-tests/test-reports
 
+      - name: Set up SSH key
+        uses: webfactory/ssh-agent@v0.5.4
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
       - name: Cleanup Rancher
         if: always()
-        run: ./scripts/rancher-local.sh stop
+        run: |
+          ssh -o StrictHostKeyChecking=no ubuntu@${{ steps.get_ip.outputs.ip }} "./scripts/rancher-local.sh stop"
         env:
           GITHUB_ENV: $GITHUB_ENV
+
+      - name: Terraform Destroy
+        if: always()
+        working-directory: terraform
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GCP_SA_KEY }}
+        run: |
+          terraform destroy -auto-approve \
+            -var "project=${{ secrets.GCP_PROJECT_ID }}" \
+            -var "credentials_file=credentials.json"

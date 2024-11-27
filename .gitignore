@@ -23,9 +23,11 @@ api-tests/test-reports/
 api-tests/config.yml
 
 # Level 3: Infrastructure
-infrastructure/.terraform/
-infrastructure/*.tfstate
-infrastructure/*.tfstate.*
-infrastructure/*.tfvars
-infrastructure/.terraformrc
-infrastructure/terraform.rc
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/*.tfvars
+terraform/.terraformrc
+terraform/terraform.rc
+terraform/credentials.json
+terraform/github_actions_key
