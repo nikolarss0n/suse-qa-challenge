@@ -102,19 +102,34 @@ jobs:
             -var "machine_type=e2-medium" \
             -var 'tags=["rancher-server","http-server","https-server"]'
 
-      - name: Debug Outputs
-        run: terraform output -raw instance_ip
+      - name: Debug Raw Terraform Output
+        working-directory: terraform
+        run: |
+          echo "Raw instance_ip output:"
+          terraform output -raw instance_ip || echo "No instance_ip found"
+
+      - name: Test IP Sanitization
+        working-directory: terraform
+        run: |
+          ip=$(terraform output -raw instance_ip | tr -d '%')
+          echo "Sanitized IP: $ip"
+          if [[ -z "$ip" ]]; then
+            echo "Error: Sanitized IP is empty."
+            exit 1
+          fi
+
        
       - name: Retrieve VM IP
         id: get_ip
         working-directory: terraform
         run: |
-          ip=$(terraform output -raw instance_ip 2>/dev/null || echo "No IP found")
+          ip=$(terraform output -raw instance_ip | tr -d '%')
           if [[ -z "$ip" ]]; then
             echo "Error: instance_ip not retrieved."
             exit 1
           fi
           echo "ip=$ip" >> $GITHUB_OUTPUT
+
 
 
 
