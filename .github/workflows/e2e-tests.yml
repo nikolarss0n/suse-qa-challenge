@@ -81,6 +81,15 @@ jobs:
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
+      - name: Check Active Service Account
+        run: |
+          echo "Current active account:"
+          gcloud auth list
+          echo "Current project:"
+          gcloud config list project
+          echo "Service account details:"
+          gcloud iam service-accounts describe $(gcloud auth list --filter=status:ACTIVE --format="value(account)")
+
       - name: Enable Compute Engine API
         run: |
           gcloud services enable compute.googleapis.com
