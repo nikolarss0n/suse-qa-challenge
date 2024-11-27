@@ -91,7 +91,7 @@ jobs:
         env:
           GOOGLE_CREDENTIALS: ${{ secrets.GCP_SA_KEY }}
         run: |
-          # Apply terraform and save output to a file
+          # Apply Terraform configuration
           terraform apply -auto-approve \
             -var "project=${{ secrets.GCP_PROJECT_ID }}" \
             -var "region=us-central1" \
@@ -99,9 +99,14 @@ jobs:
             -var "machine_type=e2-medium" \
             -var 'tags=["rancher-server","http-server","https-server"]'
           
-          # Get IP directly and store it in a variable
-          INSTANCE_IP=$(terraform output -raw instance_ip)
-          echo "ip=${INSTANCE_IP}" >> "$GITHUB_OUTPUT"
+          # Extract IP address and remove any debug information
+          IP_ADDRESS=$(terraform output -json instance_ip | jq -r '.')
+          
+          # Remove any debug information that might be appended
+          CLEAN_IP=$(echo "$IP_ADDRESS" | cut -d':' -f1)
+          
+          # Set the output
+          echo "ip=$CLEAN_IP" >> $GITHUB_OUTPUT
 
       - name: Wait for Rancher API to be Ready
         run: |
