@@ -85,10 +85,11 @@ jobs:
           gcloud services enable compute.googleapis.com
 
       # Apply Terraform Configuration
-      - name: Terraform Apply
+      - name: Terraform Apply with Debug
         working-directory: terraform
         env:
           GOOGLE_CREDENTIALS: ${{ secrets.GCP_SA_KEY }}
+          TF_LOG: DEBUG
         run: |
           terraform apply -auto-approve \
             -var "project=${{ secrets.GCP_PROJECT_ID }}" \
@@ -100,6 +101,7 @@ jobs:
             -var "image_family=debian-11" \
             -var "network=default" \
             -var "subnetwork=default"
+
 
       # Retrieve VM IP
       - name: Retrieve VM IP
