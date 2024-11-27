@@ -89,9 +89,12 @@ jobs:
 
       - name: Wait for Rancher
         run: |
+          echo "Attempting to connect to Rancher at https://${{ steps.get_ip.outputs.ip }}"
           timeout=300
           while ! curl -k https://${{ steps.get_ip.outputs.ip }} -s -f -o /dev/null && [ $timeout -gt 0 ]; do
-            echo "Waiting for Rancher to be ready..."
+            echo "Waiting for Rancher to be ready... ($timeout seconds remaining)"
+            echo "Testing connection with verbose output:"
+            curl -k -v https://${{ steps.get_ip.outputs.ip }} || true
             sleep 10
             timeout=$((timeout - 10))
           done
