@@ -66,10 +66,8 @@ jobs:
         id: get_ip
         working-directory: terraform
         run: bash get_ip.sh
-
-      - name: Use VM IP
-        run: echo "VM IP is ${{ steps.get_ip.outputs.ip }}"
-
+        env:
+          ACTIONS_STEP_DEBUG: true
 
       - name: Setup Go
         if: inputs.test_suite == 'api' || inputs.test_suite == 'all'
@@ -103,6 +101,7 @@ jobs:
           fi
 
 
+
       - name: API Tests
         if: inputs.test_suite == 'api' || inputs.test_suite == 'all'
         working-directory: api-tests
@@ -122,6 +121,7 @@ jobs:
           CYPRESS_BASE_URL: https://${{ steps.get_ip.outputs.ip }}
           CYPRESS_VERIFY_SSL: false
           NODE_TLS_REJECT_UNAUTHORIZED: '0'
+
 
 
       - name: Upload Test Results
