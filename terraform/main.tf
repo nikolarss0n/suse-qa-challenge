@@ -40,7 +40,7 @@ resource "google_compute_instance" "default" {
     sh get-docker.sh
     docker run -d --restart=unless-stopped \
       --privileged \
-      -p 8443:443 \
+      -p 8443:8443 \
       -e CATTLE_BOOTSTRAP_PASSWORD=adminpassword \
       -e CATTLE_SERVER_URL="https://\$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip -H 'Metadata-Flavor: Google'):8443" \
       rancher/rancher:latest

@@ -106,13 +106,13 @@ start_rancher() {
     echo "Starting Rancher container..."
     docker run -d --name rancher_test --restart=unless-stopped \
         --privileged \
-        -p 8443:443 \
+        -p 8443:8443 \  # Update to map directly 8443 to 8443
         -e CATTLE_BOOTSTRAP_PASSWORD=adminpassword \
         -e CATTLE_SERVER_URL="https://$VM_IP:8443" \
         rancher/rancher:latest
 
     echo "Debug: Testing connection to Rancher..."  # Add debug output
-    curl -k -v https://$VM_IP:8443/ping  # Add verbose output
+    curl -k -v https://$VM_IP:8443/ping  # Ensure the correct port is used
 
     echo "Waiting for Rancher to become available..."
     until curl -k -s -o /dev/null -w "%{http_code}" "https://$VM_IP:8443/ping" | grep -q "200"; do
