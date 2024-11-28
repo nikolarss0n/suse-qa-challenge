@@ -63,7 +63,12 @@ jobs:
             -var "ssh_public_key=${{ env.SSH_PUBLIC_KEY }}"
 
       - name: Wait for VM Availability
-        run: sleep 60
+        run: |
+          while ! ping -c 1 ${{ steps.get_ip.outputs.ip }} &> /dev/null; do
+            echo "Waiting for VM to be available..."
+            sleep 10
+          done
+
 
 
       - name: Make Rancher Script Executable
