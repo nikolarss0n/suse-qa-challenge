@@ -62,6 +62,8 @@ jobs:
             -var "machine_type=e2-medium" \
             -var "ssh_public_key=${{ env.SSH_PUBLIC_KEY }}"
 
+      - name: Wait for VM Availability
+        run: sleep 60
 
 
       - name: Make Rancher Script Executable
