@@ -48,7 +48,7 @@ variable "subnetwork" {
 variable "tags" {
   description = "Network tags for the VM"
   type        = list(string)
-  default     = ["http-server", "https-server"]  # Added default tags for Rancher access
+  default     = ["http-server", "https-server", "rancher"]  # Added rancher tag for port 8443
 }
 
 variable "ssh_public_key" {

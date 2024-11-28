@@ -101,6 +101,8 @@ start_rancher() {
         docker rm rancher_test >/dev/null 2>&1
     fi
 
+    echo "Debug: Using VM IP: $VM_IP"  # Add debug output
+
     echo "Starting Rancher container..."
     docker run -d --name rancher_test --restart=unless-stopped \
         --privileged \
@@ -108,6 +110,9 @@ start_rancher() {
         -e CATTLE_BOOTSTRAP_PASSWORD=adminpassword \
         -e CATTLE_SERVER_URL="https://$VM_IP:8443" \
         rancher/rancher:latest
+
+    echo "Debug: Testing connection to Rancher..."  # Add debug output
+    curl -k -v https://$VM_IP:8443/ping  # Add verbose output
 
     echo "Waiting for Rancher to become available..."
     until curl -k -s -o /dev/null -w "%{http_code}" "https://$VM_IP:8443/ping" | grep -q "200"; do
