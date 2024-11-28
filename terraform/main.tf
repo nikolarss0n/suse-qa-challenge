@@ -10,15 +10,6 @@ resource "google_compute_firewall" "rancher" {
 
   source_ranges = ["0.0.0.0/0"]
   target_tags   = ["rancher"]
-
-  lifecycle {
-    # This will prevent Terraform from failing if the rule exists
-    ignore_changes = [
-      name,
-      target_tags,
-      source_ranges,
-    ]
-  }
 }
 
 # VM Instance
