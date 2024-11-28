@@ -1,6 +1,6 @@
 # Firewall rule for Rancher
 resource "google_compute_firewall" "rancher" {
-  name    = "allow-rancher"
+  name    = "allow-rancher-${formatdate("YYYYMMDD-HHmmss", timestamp())}"  # Add timestamp
   network = var.network
 
   allow {
