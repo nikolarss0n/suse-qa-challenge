@@ -20,7 +20,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60  # Increased timeout to allow for potential delays
 
     steps:
       - name: Checkout code
@@ -63,8 +63,21 @@ jobs:
             -var "ssh_public_key=${{ env.SSH_PUBLIC_KEY }}"
 
       - name: Wait for VM Availability
-        run: sleep 60
+        run: |
+          echo "Waiting for VM to become available..."
+          sleep 120  # Wait to ensure the VM is up and running, including network stabilization
 
+      - name: Verify VM IP is Reachable
+        run: |
+          for i in {1..10}; do
+            if ping -c 1 -W 5 ${{ env.VM_IP }}; then
+              echo "VM IP is reachable."
+              break
+            else
+              echo "VM IP not reachable yet, retrying..."
+              sleep 15
+            fi
+          done
 
       - name: Make Rancher Script Executable
         run: chmod +x ./scripts/rancher-local.sh
@@ -74,6 +87,25 @@ jobs:
         env:
           GITHUB_ENV: $GITHUB_ENV
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+
+      - name: Wait for Rancher to be Ready
+        run: |
+          echo "Waiting for Rancher to become available..."
+          MAX_RETRIES=20
+          RETRY_DELAY=15
+          for i in $(seq 1 $MAX_RETRIES); do
+            if curl -k --connect-timeout 5 https://${{ env.VM_IP }}:8443/ping; then
+              echo "Successfully connected to Rancher on VM IP."
+              break
+            else
+              echo "Rancher is not yet accessible, retrying in $RETRY_DELAY seconds..."
+              sleep $RETRY_DELAY
+            fi
+          done
+          if [ $i -eq $MAX_RETRIES ]; then
+            echo "Failed to connect to Rancher after multiple attempts." >&2
+            exit 1
+          fi
 
       - name: Setup Go
         if: inputs.test_suite == 'api' || inputs.test_suite == 'all'
@@ -95,7 +127,7 @@ jobs:
         if: inputs.test_suite == 'api' || inputs.test_suite == 'all'
         working-directory: api-tests
         env:
-          RANCHER_URL: https://${{ steps.get_ip.outputs.ip }}
+          RANCHER_URL: https://${{ env.VM_IP }}:8443
         run: |
           go mod download
           go test -v ./...
@@ -107,11 +139,9 @@ jobs:
           working-directory: ui-tests
           browser: chrome
         env:
-          CYPRESS_BASE_URL: https://${{ steps.get_ip.outputs.ip }}
+          CYPRESS_BASE_URL: https://${{ env.VM_IP }}:8443
           CYPRESS_VERIFY_SSL: false
           NODE_TLS_REJECT_UNAUTHORIZED: '0'
-
-
 
       - name: Upload Test Results
         if: always()
