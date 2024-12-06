@@ -24,13 +24,13 @@ variable "machine_type" {
 variable "image_family" {
   description = "Image family to use for the VM"
   type        = string
-  default     = "debian-11"
+  default     = "ubuntu-2004-lts"  # Changed to Ubuntu for better Docker support
 }
 
 variable "image_project" {
   description = "Image project to use for the VM"
   type        = string
-  default     = "debian-cloud"
+  default     = "ubuntu-os-cloud"  # Changed to Ubuntu project
 }
 
 variable "network" {
@@ -48,5 +48,11 @@ variable "subnetwork" {
 variable "tags" {
   description = "Network tags for the VM"
   type        = list(string)
-  default     = []
+  default     = ["http-server", "https-server", "rancher"]  # Added rancher tag for port 8443
+}
+
+variable "ssh_public_key" {
+  description = "SSH public key for VM access"
+  type        = string
+  default     = ""  # Will be populated from GitHub Actions
 }

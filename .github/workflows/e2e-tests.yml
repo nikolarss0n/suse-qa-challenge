@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       test_suite:
-        description: 'Select the test suite to run'
+        description: 'Select test suite to run'
         required: true
         default: 'all'
         type: choice
@@ -20,40 +20,103 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-
-    env:
-      ADMIN_PASSWORD: ${{ secrets.RANCHER_ADMIN_PASSWORD }}
-      RANCHER_URL: https://localhost:8443
+    timeout-minutes: 60  # Increased timeout to allow for potential delays
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Install Dependencies
+      - name: Generate SSH Key
         run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
+          ssh-keygen -t ed25519 -f ~/.ssh/gh_actions -q -N ""
+          echo "SSH_PUBLIC_KEY=$(cat ~/.ssh/gh_actions.pub)" >> $GITHUB_ENV
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: '1.4.6'
+
+      - name: Terraform Init
+        working-directory: terraform
+        run: terraform init
+
+      - name: Attempt VM Cleanup
+        working-directory: terraform
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GCP_SA_KEY }}
+        run: |
+          terraform destroy -auto-approve \
+            -var "project=${{ secrets.GCP_PROJECT_ID }}" \
+            -var "zone=us-central1-a" \
+            -var "machine_type=e2-medium" \
+            -var "ssh_public_key=${{ env.SSH_PUBLIC_KEY }}" || true
+
+      - name: Terraform Apply
+        working-directory: terraform
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GCP_SA_KEY }}
+        run: |
+          terraform apply -auto-approve \
+            -var "project=${{ secrets.GCP_PROJECT_ID }}" \
+            -var "zone=us-central1-a" \
+            -var "machine_type=e2-medium" \
+            -var "ssh_public_key=${{ env.SSH_PUBLIC_KEY }}"
+
+      - name: Wait for VM Availability
+        run: |
+          echo "Waiting for VM to become available..."
+          sleep 120  # Wait to ensure the VM is up and running, including network stabilization
+
+      - name: Verify VM IP is Reachable
+        run: |
+          for i in {1..10}; do
+            if ping -c 1 -W 5 ${{ env.VM_IP }}; then
+              echo "VM IP is reachable."
+              break
+            else
+              echo "VM IP not reachable yet, retrying..."
+              sleep 15
+            fi
+          done
 
       - name: Make Rancher Script Executable
-        run: chmod +x scripts/rancher-local.sh
+        run: chmod +x ./scripts/rancher-local.sh
 
       - name: Start Rancher and Generate API Tokens
         run: ./scripts/rancher-local.sh start
         env:
           GITHUB_ENV: $GITHUB_ENV
-          ADMIN_PASSWORD: ${{ env.ADMIN_PASSWORD }}
-          RANCHER_URL: ${{ env.RANCHER_URL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
 
-      # At this point, API_TOKEN, API_USERNAME, and CYPRESS_AUTH_TOKEN are set
+      - name: Wait for Rancher to be Ready
+        run: |
+          echo "Waiting for Rancher to become available..."
+          MAX_RETRIES=20
+          RETRY_DELAY=15
+          for i in $(seq 1 $MAX_RETRIES); do
+            if curl -k --connect-timeout 5 https://${{ env.VM_IP }}:8443/ping; then
+              echo "Successfully connected to Rancher on VM IP."
+              break
+            else
+              echo "Rancher is not yet accessible, retrying in $RETRY_DELAY seconds..."
+              sleep $RETRY_DELAY
+            fi
+          done
+          if [ $i -eq $MAX_RETRIES ]; then
+            echo "Failed to connect to Rancher after multiple attempts." >&2
+            exit 1
+          fi
 
-      - name: Setup Go Environment
+      - name: Setup Go
+        if: inputs.test_suite == 'api' || inputs.test_suite == 'all'
         uses: actions/setup-go@v4
         with:
           go-version: '1.21'
           cache: true
           cache-dependency-path: api-tests/go.sum
 
-      - name: Setup Node.js Environment
+      - name: Setup Node.js
+        if: inputs.test_suite == 'ui' || inputs.test_suite == 'all'
         uses: actions/setup-node@v3
         with:
           node-version: '18'
@@ -64,6 +127,8 @@ jobs:
       - name: Setup API Tests
         if: ${{ github.event.inputs.test_suite == 'api' || github.event.inputs.test_suite == 'all' }}
         working-directory: api-tests
+        env:
+          RANCHER_URL: https://${{ env.VM_IP }}:8443
         run: |
           # Assuming config.yml is already created by the script
           echo "Config.yml already created by rancher-local.sh"
@@ -87,8 +152,7 @@ jobs:
           working-directory: ui-tests
           browser: chrome
         env:
-          CYPRESS_BASE_URL: ${{ env.RANCHER_URL }}
-          CYPRESS_RANCHER_URL: ${{ env.RANCHER_URL }}
+          CYPRESS_BASE_URL: https://${{ env.VM_IP }}:8443
           CYPRESS_VERIFY_SSL: false
           NODE_TLS_REJECT_UNAUTHORIZED: '0'
           CYPRESS_CHROME_WEB_SECURITY: false
@@ -108,4 +172,10 @@ jobs:
         if: always()
         run: ./scripts/rancher-local.sh stop
         env:
-          GITHUB_ENV: $GITHUB_ENV
+          GOOGLE_CREDENTIALS: ${{ secrets.GCP_SA_KEY }}
+        run: |
+          terraform destroy -auto-approve \
+            -var "project=${{ secrets.GCP_PROJECT_ID }}" \
+            -var "zone=us-central1-a" \
+            -var "machine_type=e2-medium" \
+            -var "ssh_public_key=${{ env.SSH_PUBLIC_KEY }}"
